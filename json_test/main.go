@@ -1,8 +1,7 @@
 package main
 
 import (
-	"bytes"
-	"encoding/gob"
+	"encoding/json"
 	"fmt"
 )
 
@@ -66,19 +65,16 @@ func main() {
 }
 
 func enc(obj interface{}) []byte {
-	var buf bytes.Buffer
-	enc := gob.NewEncoder(&buf)
-	if err := enc.Encode(obj); err != nil {
+	buf, err := json.Marshal(obj)
+	if err != nil {
 		panic(err)
 	}
-	return buf.Bytes()
+	return buf
 }
 
 func dec(t string, data []byte) I {
-	buf := bytes.NewBuffer(data)
-	dec := gob.NewDecoder(buf)
 	i := myNew(t)
-	err := dec.Decode(i)
+	err := json.Unmarshal(data, i)
 	if err != nil {
 		panic(err)
 	}
