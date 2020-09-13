@@ -23,11 +23,9 @@ Grafana 中所有的 Dashboard 通过 JSON 进行共享，下载并且导入这�
 比如 [node-exporter_rev17.json](node-exporter_rev17.json) 就是从 [https://grafana.com/grafana/dashboards/8919](https://grafana.com/grafana/dashboards/8919) 页面上下载的
 
 
-## 学习资料
+## 学习资料 [prometheus-book](https://yunlzheng.gitbook.io/prometheus-book)
 
-- [https://yunlzheng.gitbook.io/prometheus-book](https://yunlzheng.gitbook.io/prometheus-book)
-
-这里的一些练习，都是照着 prometheus-book 完成的，还有一些操作没文本方式保留下来，包括：
+这里的一些练习，都是照着 [prometheus-book](https://yunlzheng.gitbook.io/prometheus-book) 完成的，还有一些操作没文本方式保留下来，包括：
 - 模板化 Dashboard
 - prometheus 的服务发现功能
 
