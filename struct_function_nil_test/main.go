@@ -47,11 +47,6 @@ func test4() {
 }
 
 func test5() {
-	defer func() {
-		if r := recover(); r != nil {
-			fmt.Println(r)
-		}
-	}()
 	var a interface{} = (*aa)(nil)
 	a.(*aa).F()
 }
