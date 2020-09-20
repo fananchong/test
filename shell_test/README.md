@@ -92,3 +92,18 @@ git status --porcelain | fail_on_output
 echo "aaa"
 ```
 
+如果没有任何修改或未纳入版本库的文件，则输出：
+
+```vim
+fananchong@ali-ubuntu:~/test/shell_test$ ./git.sh 
+aaa
+```
+
+如果有修改或有未纳入版本库的文件，则输出：
+
+```vim
+fananchong@ali-ubuntu:~/test/shell_test$ ./git.sh 
+ M shell_test/README.md
+ D shell_test/set_e.sh
+?? shell_test/xxxxxxxxx
+```
