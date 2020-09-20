@@ -58,6 +58,27 @@ ls: cannot access '/xxxxx': No such file or directory
 0
 ```
 
+## trap
+
+收到某信号量执行某函数
+
+
+比如：
+
+```vim
+on_exit() {
+  echo "xxxxxxxx"
+}
+trap on_exit EXIT
+```
+
+输出为：
+
+```vim
+fananchong@ali-ubuntu:~/test/shell_test$ ./trap.sh 
+xxxxxxxx
+```
+
 ## 自定义函数 not
 
 确保一定返回`非0`的命令，返回`0值`
@@ -82,7 +103,7 @@ aaa
 
 ## 自定义函数 fail_on_output
 
-有错误到标准输出，则返回`非0`
+有错误到标准错误，则返回`非0`
 
 比如 git.sh 中：
 
@@ -92,7 +113,7 @@ git status --porcelain | fail_on_output
 echo "aaa"
 ```
 
-如果没有任何修改或未纳入版本库的文件，则输出：
+如果没有任何修改或没有未纳入版本库的文件，则输出：
 
 ```vim
 fananchong@ali-ubuntu:~/test/shell_test$ ./git.sh 

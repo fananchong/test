@@ -17,10 +17,8 @@ fail_on_output() {
 # Check to make sure it's safe to modify the user's git repo.
 git status --porcelain | fail_on_output
 
-# Undo any edits made by this script.
-cleanup() {
-  git reset --hard HEAD
-}
-trap cleanup EXIT
-
 echo "aaa"
+
+
+
+
