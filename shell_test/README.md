@@ -162,3 +162,23 @@ fananchong@ali-ubuntu:~/test/shell_test$ ./pushd_and_popd.sh
 ~/test/shell_test
 /home/fananchong/test/shell_test
 ```
+
+
+## mktemp
+
+脚本 [mktemp.sh](mktemp.sh) 中，生成临时文件夹
+
+```vim
+#!/bin/bash
+
+tempdir=$(mktemp)
+echo $tempdir
+rm -rf $tempdir
+```
+
+输出为：
+
+```vim
+fananchong@ali-ubuntu:~/test/shell_test$ ./mktemp.sh 
+/tmp/tmp.Z4wsGmEkuV
+```
