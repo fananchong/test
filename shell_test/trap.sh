@@ -3,6 +3,6 @@
 # trap -l : can see signal list
 
 on_exit() {
-  echo "xxxxxxxx"
+  echo "xxxxxx"
 }
 trap on_exit EXIT
