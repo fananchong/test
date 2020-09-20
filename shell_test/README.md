@@ -79,3 +79,16 @@ aaa
 aaa
 1
 ```
+
+## 自定义函数 fail_on_output
+
+有错误到标准输出，则返回`非0`
+
+比如 git.sh 中：
+
+```vim
+# Check to make sure it's safe to modify the user's git repo.
+git status --porcelain | fail_on_output
+echo "aaa"
+```
+
