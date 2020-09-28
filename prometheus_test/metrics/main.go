@@ -15,11 +15,17 @@ var (
 	myGauge            = prometheus.NewGauge(prometheus.GaugeOpts{Name: "myGauge", Help: "Test Gauge"})
 	mySummary          = prometheus.NewSummary(prometheus.SummaryOpts{Name: "mySummary", Help: "Test Summary", Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001}})
 	myHistogram        = prometheus.NewHistogram(prometheus.HistogramOpts{Name: "myHistogram", Help: "Test Histogram", Buckets: prometheus.LinearBuckets(95, 1, 10)})
-	myCounterWithLabel = prometheus.NewCounterVec(prometheus.CounterOpts{Name: "myCounter", Help: "Test Counter", ConstLabels: prometheus.Labels{"name": "xxxx"}}, []string{"type"})
+	myCounterWithLabel = prometheus.NewCounterVec(prometheus.CounterOpts{Name: "myCounterWithLabel", Help: "Test Counter", ConstLabels: prometheus.Labels{"name": "xxxx"}}, []string{"type"})
 )
 
 func init() {
-	prometheus.MustRegister(myCounter, myGauge, mySummary, myHistogram)
+	prometheus.MustRegister(
+		myCounter,
+		myCounterWithLabel,
+		myGauge,
+		mySummary,
+		myHistogram,
+	)
 }
 
 func main() {
