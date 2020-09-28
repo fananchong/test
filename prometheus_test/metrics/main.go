@@ -11,10 +11,11 @@ import (
 )
 
 var (
-	myCounter   = prometheus.NewCounter(prometheus.CounterOpts{Name: "myCounter", Help: "Test Counter"})
-	myGauge     = prometheus.NewGauge(prometheus.GaugeOpts{Name: "myGauge", Help: "Test Gauge"})
-	mySummary   = prometheus.NewSummary(prometheus.SummaryOpts{Name: "mySummary", Help: "Test Summary", Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001}})
-	myHistogram = prometheus.NewHistogram(prometheus.HistogramOpts{Name: "myHistogram", Help: "Test Histogram", Buckets: prometheus.LinearBuckets(95, 1, 10)})
+	myCounter          = prometheus.NewCounter(prometheus.CounterOpts{Name: "myCounter", Help: "Test Counter"})
+	myGauge            = prometheus.NewGauge(prometheus.GaugeOpts{Name: "myGauge", Help: "Test Gauge"})
+	mySummary          = prometheus.NewSummary(prometheus.SummaryOpts{Name: "mySummary", Help: "Test Summary", Objectives: map[float64]float64{0.5: 0.05, 0.9: 0.01, 0.99: 0.001}})
+	myHistogram        = prometheus.NewHistogram(prometheus.HistogramOpts{Name: "myHistogram", Help: "Test Histogram", Buckets: prometheus.LinearBuckets(95, 1, 10)})
+	myCounterWithLabel = prometheus.NewCounterVec(prometheus.CounterOpts{Name: "myCounter", Help: "Test Counter", ConstLabels: prometheus.Labels{"name": "xxxx"}}, []string{"type"})
 )
 
 func init() {
@@ -26,6 +27,8 @@ func main() {
 	go func() {
 		for {
 			myCounter.Inc()
+			myCounterWithLabel.WithLabelValues("type_1").Inc()
+			myCounterWithLabel.WithLabelValues("type_2").Inc()
 			time.Sleep(1 * time.Second)
 		}
 	}()
