@@ -21,7 +21,8 @@ void dump_heap()
 
 void f()
 {
-    malloc(8 * 1024 * 1024);
+    char *ptr = (char *)malloc(8 * 1024 * 1024);
+    ptr[10000] = 1;
 }
 
 void test_malloc()

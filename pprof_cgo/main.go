@@ -14,5 +14,8 @@ func main() {
 	TestMalloc()
 	TestMalloc()
 	TestMalloc()
+	C.malloc(C.size_t(8 * 1024 * 1024))
+	C.malloc(C.size_t(8 * 1024 * 1024))
+	C.malloc(C.size_t(8 * 1024 * 1024))
 	DumpHeap()
 }
