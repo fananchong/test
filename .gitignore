@@ -13,3 +13,6 @@
 
 # Dependency directories (remove the comment below to include it)
 # vendor/
+
+pprof_cgo/lib/share
+pprof_cgo/gperftools/*
