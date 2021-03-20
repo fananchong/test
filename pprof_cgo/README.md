@@ -86,7 +86,11 @@ Total: 17.0 MB
 lib/bin/pprof --pdf ./main 2573.0001.heap > 2573.0001.pdf
 ```
 
+要比较 2 个快照，查看内存泄漏，使用命令：
 
+```shell
+lib/bin/pprof --pdf ./main --base=11990.0001.heap 11990.0002.heap > diff.pdf
+```
 
 ## 其他
 

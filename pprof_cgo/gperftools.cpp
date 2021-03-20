@@ -21,10 +21,10 @@ void dump_heap()
 
 void f()
 {
-    char *ptr1 = (char *)malloc(1 * 1024 * 1024);
+    char *ptr1 = (char *)malloc(10 * 1024 * 1024);
     ptr1[1000] = 1;
     free(ptr1);
-    char *ptr2 = (char *)malloc(3 * 1024 * 1024);
+    char *ptr2 = (char *)malloc(30 * 1024 * 1024);
     ptr2[1000] = 1;
 }
 

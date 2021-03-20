@@ -3,5 +3,5 @@ all:
 	ar cr libgperftools.a gperftools.o
 	go build -o main -gcflags=all="-N -l" gperftools.go main.go
 clean:
-	rm -f main gperftools.o *.heap
+	rm -f main gperftools.o libgperftools.a *.heap
 
