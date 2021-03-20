@@ -1,5 +1,5 @@
 all:
-	g++ -I. -I./lib/include -O3 -c gperftools.cpp
+	g++ -I. -I./lib/include -c gperftools.cpp
 	ar cr libgperftools.a gperftools.o
 	go build -o main -gcflags=all="-N -l" gperftools.go main.go
 clean:

@@ -12,7 +12,6 @@ void setup_gperftools()
     char prefix[128];
     sprintf(prefix, "%d", getpid());
     HeapProfilerStart(prefix);
-    test_malloc();
 }
 
 void dump_heap()
@@ -22,8 +21,11 @@ void dump_heap()
 
 void f()
 {
-    char *ptr = (char *)malloc(8);
-    free(ptr);
+    char *ptr1 = (char *)malloc(1 * 1024 * 1024);
+    ptr1[1000] = 1;
+    free(ptr1);
+    char *ptr2 = (char *)malloc(3 * 1024 * 1024);
+    ptr2[1000] = 1;
 }
 
 void test_malloc()
