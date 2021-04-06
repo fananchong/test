@@ -6,6 +6,8 @@ import (
 	"time"
 )
 
+// https://www.jianshu.com/p/43b0e12043b9
+
 func f() {
 	container := make([]int, 8)
 	log.Println("> loop.")
