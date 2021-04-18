@@ -17,8 +17,8 @@ func test_800b() {
 		go func() {
 			defer wait.Done()
 			var a [100]int64
-			for i := 0; i < 100; i++ {
-				atomic.AddInt64(&a[len(a)-i-1], 1)
+			for j := 0; j < 100; j++ {
+				atomic.AddInt64(&a[len(a)-j-1], 1)
 				runtime.Gosched()
 			}
 		}()
@@ -37,8 +37,8 @@ func test_8k() {
 		go func() {
 			defer wait.Done()
 			var a [1024]int64
-			for i := 0; i < 100; i++ {
-				atomic.AddInt64(&a[len(a)-i-1], 1)
+			for j := 0; j < 100; j++ {
+				atomic.AddInt64(&a[len(a)-j-1], 1)
 				runtime.Gosched()
 			}
 		}()
@@ -57,8 +57,8 @@ func test_80k() {
 		go func() {
 			defer wait.Done()
 			var a [1024 * 10]int64
-			for i := 0; i < 100; i++ {
-				atomic.AddInt64(&a[len(a)-i-1], 1)
+			for j := 0; j < 100; j++ {
+				atomic.AddInt64(&a[len(a)-j-1], 1)
 				runtime.Gosched()
 			}
 		}()
@@ -77,8 +77,8 @@ func test_800k() {
 		go func() {
 			defer wait.Done()
 			var a [1024 * 100]int64
-			for i := 0; i < 100; i++ {
-				atomic.AddInt64(&a[len(a)-i-1], 1)
+			for j := 0; j < 100; j++ {
+				atomic.AddInt64(&a[len(a)-j-1], 1)
 				runtime.Gosched()
 			}
 		}()
@@ -97,8 +97,8 @@ func test_4m() {
 		go func() {
 			defer wait.Done()
 			var a [1024 * 500]int64
-			for i := 0; i < 100; i++ {
-				atomic.AddInt64(&a[len(a)-i-1], 1)
+			for j := 0; j < 100; j++ {
+				atomic.AddInt64(&a[len(a)-j-1], 1)
 				runtime.Gosched()
 			}
 		}()
