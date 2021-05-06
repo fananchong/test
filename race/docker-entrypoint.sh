@@ -1,3 +1,3 @@
 #!/bin/bash
 
-/race 2> >(tee /1.log)
+/race $@ 2> >(tee /1.log)
