@@ -1,3 +1,5 @@
 #!/bin/bash
 
-go build -race .
+go build -race -ldflags '-linkmode "external" -extldflags "-static"' .
+
+docker build -t test_race:latest .
