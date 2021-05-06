@@ -1,4 +1,4 @@
 FROM alpine:latest
 RUN apk --no-cache add bash
-COPY ./race ./docker_entrypoint.sh /
-ENTRYPOINT ["/docker_entrypoint.sh"]
+COPY ./race ./docker-entrypoint.sh /
+ENTRYPOINT ["/docker-entrypoint.sh"]
