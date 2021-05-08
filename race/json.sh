@@ -1,8 +1,7 @@
 #!/bin/bash
 
-time=$(date "+%Y-%m-%d %H:%M:%S.000000")
 i=0
-msg="{\"Time\":\"${time}\", \"Msg\":\""
+msg=""
 while read line; do
     if [ "${line}" == "==================" ]; then
         i=$(expr $i + 1)
@@ -10,12 +9,15 @@ while read line; do
     if [ "$i" == "0" ]; then
         echo ${line}
     elif [ "$i" == "1" ]; then
+        if [ "${msg}" == "" ]; then
+            time=$(date "+%Y-%m-%d %H:%M:%S.000000")
+            msg="{\"Time\":\"${time}\", \"Msg\":\""
+        fi
         msg="${msg}${line}\n"
     elif [ "$i" == "2" ]; then
         msg="${msg}\"}"
         echo $msg
-        time=$(date "+%Y-%m-%d %H:%M:%S.000000")
         i=0
-        msg="{\"Time\":\"${time}\", \"Msg\":\""
+        msg=""
     fi
 done
