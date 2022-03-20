@@ -9,6 +9,6 @@ if [ "$n" == "0" ]; then
     go mod tidy
 fi
 
-pushd examples && gofail enable && popd
+gofail enable examples
 go mod tidy
 go build
