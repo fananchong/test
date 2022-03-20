@@ -14,8 +14,24 @@ func TestExampleFunc(t *testing.T) {
 	}
 }
 
+func TestExampleFunc2(t *testing.T) {
+	gofail.Enable("examples/ExampleString", `sleep(1000)->100.0%panic`)
+	defer gofail.Disable("examples/ExampleString")
+	if ExampleFunc() != "example" {
+		t.Fatal("!!!")
+	}
+}
+
 func TestExampleOneLineFunc(t *testing.T) {
 	gofail.Enable("examples/ExampleOneLine", `return`)
+	defer gofail.Disable("examples/ExampleOneLine")
+	if ExampleOneLineFunc() != "abc" {
+		t.Fatal("!!!")
+	}
+}
+
+func TestExampleOneLineFunc2(t *testing.T) {
+	gofail.Enable("examples/ExampleOneLine", `100.0%panic`)
 	defer gofail.Disable("examples/ExampleOneLine")
 	if ExampleOneLineFunc() != "abc" {
 		t.Fatal("!!!")
