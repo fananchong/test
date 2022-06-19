@@ -1,0 +1,7 @@
+pkg
+.vscode
+*.out
+*.wal
+*.tmp
+*.snap
+etcdrafttest
