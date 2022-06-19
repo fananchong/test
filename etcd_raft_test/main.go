@@ -65,7 +65,7 @@ func main() {
 	urls := []string{"http://127.0.0.1:12380", "http://127.0.0.1:22380", "http://127.0.0.1:32380"}
 
 	var putCounter int32
-	var putNum = 100000
+	var putNum = 10000
 	var putUrlCounter = 0
 	var putWG sync.WaitGroup
 	for i := 0; i < clientNum; i++ {
@@ -92,7 +92,7 @@ func main() {
 	putTick.Stop()
 
 	var getCounter int32
-	var getNum = 100000
+	var getNum = 10000
 	var getUrlCounter = 0
 	var getWG sync.WaitGroup
 	for i := 0; i < clientNum; i++ {
