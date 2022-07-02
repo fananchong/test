@@ -47,6 +47,7 @@ sudo brctl addif br0 veth0-br
 sudo brctl addif br0 veth1-br
 sudo brctl addif br0 veth2-br
 
+# 给网桥设置 IP
 sudo ip addr add 10.1.1.254/24 dev br0
 
 # 删除网桥
