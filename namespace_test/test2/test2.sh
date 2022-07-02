@@ -10,6 +10,8 @@ sudo ip link set veth0 netns ns0
 sudo ip link set veth1 netns ns1
 
 # 绑定 ip
+sudo ip netns exec ns0 ip link set dev lo up
+sudo ip netns exec ns1 ip link set dev lo up
 sudo ip netns exec ns0 ifconfig veth0 10.1.1.1/24 up
 sudo ip netns exec ns1 ifconfig veth1 10.1.1.2/24 up
 
