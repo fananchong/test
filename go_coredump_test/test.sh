@@ -16,3 +16,7 @@ GOTRACEBACK=crash ./go_coredump_test
 # Ctrl+\ or kill -SIGQUIT ${pid} or gcore ${pid}
 
 # dlv core ./go_coredump_test core.xxxx
+# goroutines
+# goroutine 1
+# bt
+# up 10
