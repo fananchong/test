@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"sync"
 )
 
 type mysturct struct {
@@ -39,11 +40,18 @@ func main() {
 		},
 	}
 	fmt.Println(b)
-	for i := 0; i < 500; i++ {
-		fmt.Println("looping")
-		if i == 120 {
-			panic(fmt.Errorf("i:%v", i))
+
+	gw := &sync.WaitGroup{}
+	gw.Add(1)
+	go func() {
+		for i := 0; i < 500; i++ {
+			fmt.Println("looping")
+			if i == 120 {
+				panic(fmt.Errorf("i:%v", i))
+			}
 		}
-	}
+		gw.Done()
+	}()
+	gw.Wait()
 	fmt.Println("Done")
 }
