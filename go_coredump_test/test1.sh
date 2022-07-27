@@ -20,3 +20,6 @@ GOTRACEBACK=crash ./go_coredump_test
 # goroutine 1
 # bt
 # up 10
+# locals
+# p i
+# p gA.i
