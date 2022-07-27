@@ -3,4 +3,4 @@
 set -ex
 
 cp ${TMPDIR}/* ${WORKDIR}/
-${WORKDIR}/go_coredump_test
+${WORKDIR}/go_coredump_test $@
