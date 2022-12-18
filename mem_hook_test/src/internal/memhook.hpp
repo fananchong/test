@@ -12,3 +12,4 @@
 // }
 
 void init_mem_hook();
+void remove_mem_hook();

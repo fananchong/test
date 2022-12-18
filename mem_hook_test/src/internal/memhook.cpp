@@ -1,4 +1,5 @@
 #include "memhook.hpp"
+#include "backtrace.hpp"
 #include <gperftools/malloc_hook.h>
 #include <gperftools/tcmalloc.h>
 #include <gperftools/nallocx.h>
@@ -27,11 +28,10 @@ void MyNewHook(const void *ptr, size_t size)
         auto real_size = tc_nallocx(size, 0);
         printf("new size: %d, real_size: %d, ptr=%p\n", size, real_size, &ptr);
 
-        // // 例子打印堆栈
-        // if (size > 1024)
-        // {
-        //     MallocHook::GetCallerStackTrace()
-        // }
+        // 例子打印堆栈
+        remove_mem_hook();
+        print_backtrace();
+        init_mem_hook();
     }
 }
 
@@ -48,4 +48,10 @@ void init_mem_hook()
 {
     MallocHook::AddNewHook(&MyNewHook);
     MallocHook::AddDeleteHook(&MyDeleteHook);
+}
+
+void remove_mem_hook()
+{
+    MallocHook::RemoveNewHook(&MyNewHook);
+    MallocHook::RemoveDeleteHook(&MyDeleteHook);
 }
