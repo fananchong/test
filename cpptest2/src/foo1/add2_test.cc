@@ -1,5 +1,5 @@
 #include <gtest/gtest.h>
-#include "../add.hpp"
+#include "../math/add.hpp"
 
 // Demonstrate some basic assertions.
 TEST(MyTest, Add2)
