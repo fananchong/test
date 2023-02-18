@@ -1,0 +1,10 @@
+cmake_minimum_required(VERSION 3.13)
+set(CMAKE_CXX_STANDARD 14)
+project(cpptest_main)
+set(CMAKE_INSTALL_PREFIX ${CMAKE_SOURCE_DIR}/bin)
+file(GLOB_RECURSE SRC_FILES src/*.cpp)
+add_executable(cpptest_main ${SRC_FILES})
+install(TARGETS cpptest_main DESTINATION .)
+
+enable_testing()
+add_subdirectory(src/test)
