@@ -3,5 +3,6 @@ package main
 import "go_analysis_test_example/core"
 
 func main() {
-	core.Baz()
+	core.Foo2()
+	core.Baz2()
 }

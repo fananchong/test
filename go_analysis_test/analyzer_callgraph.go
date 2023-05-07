@@ -9,28 +9,14 @@ import (
 )
 
 type callGraphNode struct {
-	parent   *callGraphNode
-	children []*callGraphNode
+	parent   map[string]*callGraphNode
+	children map[string]*callGraphNode
 	name     string
 }
 
 func (c *callGraphNode) addChild(child *callGraphNode) {
-	c.children = append(c.children, child)
-	child.parent = c
-}
-
-func (c *callGraphNode) print() {
-	if c.parent == nil {
-		fmt.Printf("%s", c.name)
-	} else {
-		fmt.Printf(" --> %s", c.name)
-	}
-	for _, child := range c.children {
-		child.print()
-	}
-	if len(c.children) == 0 {
-		fmt.Printf("\n")
-	}
+	c.children[child.name] = child
+	child.parent[c.name] = c
 }
 
 type callGraph struct {
@@ -45,7 +31,11 @@ func newCallGraph() *callGraph {
 
 func (cg *callGraph) addNode(pass *analysis.Pass, file *ast.File, x ast.Node, nodeName string, obj types.Object) {
 	if _, ok := cg.Nodes[nodeName]; !ok {
-		cg.Nodes[nodeName] = &callGraphNode{name: nodeName}
+		cg.Nodes[nodeName] = &callGraphNode{
+			parent:   map[string]*callGraphNode{},
+			children: map[string]*callGraphNode{},
+			name:     nodeName,
+		}
 	}
 	node := cg.Nodes[nodeName]
 	if parent := cg.getParent(pass, file, x); parent != nil {
@@ -74,8 +64,6 @@ func (cg *callGraph) getParent(pass *analysis.Pass, file *ast.File, node ast.Nod
 						ident = t
 						name = ident.Name + ":" + name
 					case *ast.StarExpr:
-						ident = t.X.(*ast.Ident)
-
 						obj2 := pass.TypesInfo.ObjectOf(t.X.(*ast.Ident))
 						if obj2.Type().String() != "invalid type" {
 							name = obj2.Type().String() + ":" + name
@@ -93,21 +81,35 @@ func (cg *callGraph) getParent(pass *analysis.Pass, file *ast.File, node ast.Nod
 		if parent, ok := cg.Nodes[name]; ok {
 			return parent
 		}
-		return &callGraphNode{name: name}
+		return &callGraphNode{
+			parent:   map[string]*callGraphNode{},
+			children: map[string]*callGraphNode{},
+			name:     name,
+		}
 	}
 	return nil
 }
 
 func (cg *callGraph) print() {
 	for _, node := range cg.Nodes {
-		if node.parent == nil {
-			node.print()
+		if len(node.parent) == 0 {
+			printAllPaths(node, "")
 		}
 	}
 }
 
-func run(pass *analysis.Pass) (interface{}, error) {
-	callGraph := newCallGraph()
+func printAllPaths(node *callGraphNode, path string) {
+	path += node.name + " -> "
+	if len(node.children) == 0 {
+		fmt.Println(path[:len(path)-4])
+	} else {
+		for _, child := range node.children {
+			printAllPaths(child, path)
+		}
+	}
+}
+
+func run(pass *analysis.Pass, callGraph *callGraph) (interface{}, error) {
 	for _, file := range pass.Files {
 		ast.Inspect(file, func(n ast.Node) bool {
 			switch x := n.(type) {
@@ -133,16 +135,25 @@ func run(pass *analysis.Pass) (interface{}, error) {
 			return true
 		})
 	}
-
-	callGraph.print()
 	return nil, nil
 }
 
-func GetCallGraphAnalyzer() *analysis.Analyzer {
-	var analyzer = &analysis.Analyzer{
+type CallGraphAnalyzer struct {
+	*analysis.Analyzer
+	cg *callGraph
+}
+
+func NewCallGraphAnalyzer() *CallGraphAnalyzer {
+	analyzer := &CallGraphAnalyzer{}
+	analyzer.cg = newCallGraph()
+	analyzer.Analyzer = &analysis.Analyzer{
 		Name: "callgraph",
 		Doc:  "prints the call graph",
-		Run:  run,
+		Run:  func(p *analysis.Pass) (interface{}, error) { return run(p, analyzer.cg) },
 	}
 	return analyzer
+}
+
+func (analyzer *CallGraphAnalyzer) Print() {
+	analyzer.cg.print()
 }

@@ -2,15 +2,20 @@ package main
 
 import (
 	"go/ast"
+	"os"
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/packages"
 )
 
 func Analysis(path string, analyzer *analysis.Analyzer) error {
+	err := os.Chdir(path)
+	if err != nil {
+		return err
+	}
 	packages, err := packages.Load(&packages.Config{
 		Mode: packages.LoadAllSyntax,
-	}, path)
+	}, path+"/...")
 	if err != nil {
 		return err
 	}

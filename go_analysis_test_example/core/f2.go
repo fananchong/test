@@ -21,11 +21,14 @@ func Baz2() {
 
 		}()
 	}()
+
+	x := &X2{}
+	x.FFF()
 }
 
 type X2 struct {
 }
 
 func (*X2) FFF() {
-	Baz2()
+	Foo2()
 }

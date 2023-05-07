@@ -10,8 +10,10 @@ var path string
 func main() {
 	flag.StringVar(&path, "path", "", "package path")
 	flag.Parse()
-	err := Analysis(path, GetCallGraphAnalyzer())
+	analysis := NewCallGraphAnalyzer()
+	err := Analysis(path, analysis.Analyzer)
 	if err != nil {
 		fmt.Println(err)
 	}
+	analysis.Print()
 }
