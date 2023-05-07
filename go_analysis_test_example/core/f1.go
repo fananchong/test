@@ -4,10 +4,10 @@ func Foo() {
 }
 
 func Bar() {
-	Baz()
+	C()
 }
 
-func Baz() {
+func C() {
 
 	f := func() {
 

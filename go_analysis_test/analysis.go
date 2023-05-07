@@ -19,6 +19,7 @@ func Analysis(path string, analyzer *analysis.Analyzer) error {
 	if err != nil {
 		return err
 	}
+	initCacheData(packages)
 	pass := &analysis.Pass{
 		Analyzer: analyzer,
 		Files:    []*ast.File{},
@@ -31,10 +32,45 @@ func Analysis(path string, analyzer *analysis.Analyzer) error {
 		pass.Fset = pkg.Fset
 		pass.Files = pkg.Syntax
 		pass.TypesInfo = pkg.TypesInfo
+		pass.Pkg = pkg.Types
 		_, err := analyzer.Run(pass)
 		if err != nil {
 			return err
 		}
 	}
 	return nil
+}
+
+var func2pkg = make(map[*ast.Ident]string)
+
+func initCacheData(pkgs []*packages.Package) {
+	for _, pkgInfo := range pkgs {
+		for _, f := range pkgInfo.Syntax {
+			ast.Inspect(f, func(n ast.Node) bool {
+				switch x := n.(type) {
+				case *ast.CallExpr:
+					if ident, ok := x.Fun.(*ast.Ident); ok {
+						if obj := pkgInfo.TypesInfo.ObjectOf(ident); obj != nil {
+							for _, obj2 := range pkgInfo.TypesInfo.Defs {
+								if obj2 != nil && obj2.Name() == obj.Name() {
+									func2pkg[ident] = pkgInfo.Name
+								}
+							}
+						}
+					}
+				case *ast.FuncDecl:
+					if x.Recv == nil {
+						if obj := pkgInfo.TypesInfo.ObjectOf(x.Name); obj != nil {
+							for _, obj2 := range pkgInfo.TypesInfo.Defs {
+								if obj2 != nil && obj2.Name() == obj.Name() {
+									func2pkg[x.Name] = pkgInfo.Name
+								}
+							}
+						}
+					}
+				}
+				return true
+			})
+		}
+	}
 }

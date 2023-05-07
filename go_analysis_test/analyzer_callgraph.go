@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"go/ast"
 	"go/types"
+	"strings"
 
 	"golang.org/x/tools/go/analysis"
 )
@@ -29,7 +30,7 @@ func newCallGraph() *callGraph {
 	}
 }
 
-func (cg *callGraph) addNode(pass *analysis.Pass, file *ast.File, x ast.Node, nodeName string, obj types.Object) {
+func (cg *callGraph) addNode(pass *analysis.Pass, analyzer *CallGraphAnalyzer, file *ast.File, x ast.Node, nodeName string, obj types.Object) {
 	if _, ok := cg.Nodes[nodeName]; !ok {
 		cg.Nodes[nodeName] = &callGraphNode{
 			parent:   map[string]*callGraphNode{},
@@ -38,7 +39,7 @@ func (cg *callGraph) addNode(pass *analysis.Pass, file *ast.File, x ast.Node, no
 		}
 	}
 	node := cg.Nodes[nodeName]
-	if parent := cg.getParent(pass, file, x); parent != nil {
+	if parent := cg.getParent(pass, analyzer, file, x); parent != nil {
 		parent.addChild(node)
 		if _, ok := cg.Nodes[parent.name]; !ok {
 			cg.Nodes[parent.name] = parent
@@ -46,7 +47,7 @@ func (cg *callGraph) addNode(pass *analysis.Pass, file *ast.File, x ast.Node, no
 	}
 }
 
-func (cg *callGraph) getParent(pass *analysis.Pass, file *ast.File, node ast.Node) *callGraphNode {
+func (cg *callGraph) getParent(pass *analysis.Pass, analyzer *CallGraphAnalyzer, file *ast.File, node ast.Node) *callGraphNode {
 	var name string
 	ast.Inspect(file, func(n ast.Node) bool {
 		if n == nil {
@@ -55,21 +56,20 @@ func (cg *callGraph) getParent(pass *analysis.Pass, file *ast.File, node ast.Nod
 		switch x := n.(type) {
 		case *ast.FuncDecl:
 			if x.Pos() <= node.Pos() && x.End() >= node.End() {
-				name = x.Name.Name
 				if x.Recv != nil {
 					field := x.Recv.List[0]
 					var ident *ast.Ident
 					switch t := field.Type.(type) {
 					case *ast.Ident:
 						ident = t
-						name = ident.Name + ":" + name
+						name = ident.Name + ":" + x.Name.Name
+						panic("!!!!")
 					case *ast.StarExpr:
 						obj2 := pass.TypesInfo.ObjectOf(t.X.(*ast.Ident))
-						if obj2.Type().String() != "invalid type" {
-							name = obj2.Type().String() + ":" + name
-						}
-
+						name = getFuncName2(pass, analyzer, obj2, x.Name.Name)
 					}
+				} else {
+					name = getFuncName1(pass, analyzer, x.Name, pass.TypesInfo.ObjectOf(x.Name))
 				}
 
 			}
@@ -109,26 +109,42 @@ func printAllPaths(node *callGraphNode, path string) {
 	}
 }
 
-func run(pass *analysis.Pass, callGraph *callGraph) (interface{}, error) {
+func getFuncName1(pass *analysis.Pass, analyzer *CallGraphAnalyzer, ident *ast.Ident, obj types.Object) string {
+	s := func2pkg[ident] + "." + obj.Name()
+	return s
+}
+
+func getFuncName2(pass *analysis.Pass, analyzer *CallGraphAnalyzer, obj types.Object, name string) string {
+	if obj.Type().String() != "invalid type" {
+		s := obj.Type().String() + ":" + name
+		if s[0] == '*' {
+			s = s[1:]
+		}
+		if strings.HasPrefix(s, analyzer.goModuleName) {
+			return s[len(analyzer.goModuleName)+1:]
+		} else {
+			return s
+		}
+	} else {
+		return obj.Name() + "." + name
+	}
+}
+
+func run(pass *analysis.Pass, analyzer *CallGraphAnalyzer) (interface{}, error) {
 	for _, file := range pass.Files {
 		ast.Inspect(file, func(n ast.Node) bool {
 			switch x := n.(type) {
 			case *ast.CallExpr:
 				if ident, ok := x.Fun.(*ast.Ident); ok {
 					if obj := pass.TypesInfo.ObjectOf(ident); obj != nil {
-						callGraph.addNode(pass, file, x, obj.Name(), obj)
+						analyzer.cg.addNode(pass, analyzer, file, x, getFuncName1(pass, analyzer, ident, obj), obj)
 					}
 				} else if se, ok := x.Fun.(*ast.SelectorExpr); ok {
-					if obj := pass.TypesInfo.ObjectOf(se.Sel); obj != nil {
-						objname := obj.Name()
-						obj2 := pass.TypesInfo.ObjectOf(se.X.(*ast.Ident))
-						if obj2.Type().String() != "invalid type" {
-							objname = obj2.Type().String() + ":" + obj.Name()
-							if objname[0] == '*' {
-								objname = objname[1:]
-							}
-						}
-						callGraph.addNode(pass, file, x, objname, obj)
+					se2 := getLastSelectorExpr(se)
+					if obj := pass.TypesInfo.ObjectOf(se2.Sel); obj != nil {
+						obj2 := pass.TypesInfo.ObjectOf(se2.X.(*ast.Ident))
+						objname := getFuncName2(pass, analyzer, obj2, obj.Name())
+						analyzer.cg.addNode(pass, analyzer, file, x, objname, obj)
 					}
 				}
 			}
@@ -138,19 +154,31 @@ func run(pass *analysis.Pass, callGraph *callGraph) (interface{}, error) {
 	return nil, nil
 }
 
-type CallGraphAnalyzer struct {
-	*analysis.Analyzer
-	cg *callGraph
+func getLastSelectorExpr(se *ast.SelectorExpr) *ast.SelectorExpr {
+	if _, ok := se.X.(*ast.Ident); ok {
+		return se
+	} else if _, ok := se.X.(*ast.CallExpr); ok {
+		panic("111")
+	} else {
+		return getLastSelectorExpr(se.X.(*ast.SelectorExpr))
+	}
 }
 
-func NewCallGraphAnalyzer() *CallGraphAnalyzer {
+type CallGraphAnalyzer struct {
+	*analysis.Analyzer
+	cg           *callGraph
+	goModuleName string
+}
+
+func NewCallGraphAnalyzer(goModuleName string) *CallGraphAnalyzer {
 	analyzer := &CallGraphAnalyzer{}
 	analyzer.cg = newCallGraph()
 	analyzer.Analyzer = &analysis.Analyzer{
 		Name: "callgraph",
 		Doc:  "prints the call graph",
-		Run:  func(p *analysis.Pass) (interface{}, error) { return run(p, analyzer.cg) },
+		Run:  func(p *analysis.Pass) (interface{}, error) { return run(p, analyzer) },
 	}
+	analyzer.goModuleName = goModuleName
 	return analyzer
 }
 
