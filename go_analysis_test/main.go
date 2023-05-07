@@ -1,34 +1,17 @@
 package main
 
 import (
-	"go/ast"
-	"log"
-
-	"golang.org/x/tools/go/analysis"
-	"golang.org/x/tools/go/packages"
+	"flag"
+	"fmt"
 )
 
-func main() {
-	foo()
-	bar()
+var path string
 
-	packages, err := packages.Load(&packages.Config{
-		Mode: packages.LoadAllSyntax,
-	}, "./...")
+func main() {
+	flag.StringVar(&path, "path", "", "package path")
+	flag.Parse()
+	err := Analysis(path, GetCallGraphAnalyzer())
 	if err != nil {
-		log.Fatal(err)
-	}
-	pass := &analysis.Pass{
-		Analyzer: analyzerCallgraph,
-		Files:    []*ast.File{},
-		ResultOf: map[*analysis.Analyzer]interface{}{},
-	}
-	for _, pkg := range packages {
-		pass.Fset = pkg.Fset
-		pass.Files = pkg.Syntax
-		_, err := analyzerCallgraph.Run(pass)
-		if err != nil {
-			log.Fatal(err)
-		}
+		fmt.Println(err)
 	}
 }
