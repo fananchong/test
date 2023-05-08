@@ -93,7 +93,7 @@ func (cg *callGraph) print() {
 
 func printAllPaths(node *callGraphNode, path string) {
 	if strings.Contains(path, node.name+" ") {
-		path += node.name + "[LOOP]"
+		path += node.name + " <- [LOOP]"
 		fmt.Println(path)
 	} else {
 		path += node.name + " -> "
@@ -129,7 +129,8 @@ func getFuncName2(pass *analysis.Pass, analyzer *CallGraphAnalyzer, obj types.Ob
 			return s
 		}
 	} else {
-		return obj.Name() + "." + name
+		s := ajustPkgName(obj.String(), analyzer.goModuleName) + "." + name
+		return s
 	}
 }
 
