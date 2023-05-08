@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"go/ast"
 	"go/types"
+	"math"
+	"sort"
 	"strings"
 
 	"golang.org/x/tools/go/analysis"
@@ -48,43 +50,71 @@ func (cg *callGraph) addNode(pass *analysis.Pass, analyzer *CallGraphAnalyzer, f
 }
 
 func (cg *callGraph) getParent(pass *analysis.Pass, analyzer *CallGraphAnalyzer, file *ast.File, node ast.Node) *callGraphNode {
-	var name string
+	type funcInfo struct {
+		Name     string
+		PosBegin int
+		PosEnd   int
+	}
+	var ninfo = &funcInfo{
+		Name:     "",
+		PosBegin: math.MinInt,
+		PosEnd:   math.MaxInt,
+	}
 	pos := pass.Fset.Position(node.Pos())
 	line := pos.Line
+
 	for _, x := range funcInFile[pos.Filename] {
 		posBegin := pass.Fset.Position(x.Body.Lbrace)
 		posEnd := pass.Fset.Position(x.Body.Rbrace)
-		if posBegin.Line <= line && posEnd.Line >= line && posBegin.Filename == pos.Filename {
+		if posBegin.Line < line && posEnd.Line > line && posBegin.Filename == pos.Filename && posBegin.Line > ninfo.PosBegin && posEnd.Line < ninfo.PosEnd {
 			if x.Recv != nil {
 				field := x.Recv.List[0]
 				switch t := field.Type.(type) {
 				case *ast.StarExpr:
 					obj2 := pass.TypesInfo.ObjectOf(t.X.(*ast.Ident))
-					name = getFuncName2(pass, analyzer, obj2, x.Name.Name)
+					ninfo.Name = getFuncName2(pass, analyzer, obj2, x.Name.Name)
 				default:
 					panic("[getParent] unknow type")
 				}
 			} else {
-				name = getFuncName1(pass, analyzer, x.Name, pass.TypesInfo.ObjectOf(x.Name))
+				ninfo.Name = getFuncName1(pass, analyzer, x.Name, pass.TypesInfo.ObjectOf(x.Name))
 			}
-			break
+			ninfo.PosBegin = posBegin.Line
+			ninfo.PosEnd = posEnd.Line
 		}
 	}
-	if name != "" {
-		if parent, ok := cg.Nodes[name]; ok {
+
+	for _, x := range anonymousInFile[pos.Filename] {
+		posBegin := pass.Fset.Position(x.Body.Lbrace)
+		posEnd := pass.Fset.Position(x.Body.Rbrace)
+		if posBegin.Line < line && posEnd.Line > line && posBegin.Filename == pos.Filename && posBegin.Line > ninfo.PosBegin && posEnd.Line < ninfo.PosEnd {
+			ninfo.Name = ajustAnonymousName(posBegin, analyzer.goModuleName)
+			ninfo.PosBegin = posBegin.Line
+			ninfo.PosEnd = posEnd.Line
+		}
+	}
+
+	if ninfo.Name != "" {
+		if parent, ok := cg.Nodes[ninfo.Name]; ok {
 			return parent
 		}
 		return &callGraphNode{
 			parent:   map[string]*callGraphNode{},
 			children: map[string]*callGraphNode{},
-			name:     name,
+			name:     ninfo.Name,
 		}
 	}
 	return nil
 }
 
 func (cg *callGraph) print() {
-	for _, node := range cg.Nodes {
+	keys := make([]string, 0, len(cg.Nodes))
+	for k := range cg.Nodes {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		node := cg.Nodes[k]
 		if len(node.parent) == 0 {
 			printAllPaths(node, "")
 		}
@@ -100,7 +130,13 @@ func printAllPaths(node *callGraphNode, path string) {
 		if len(node.children) == 0 {
 			fmt.Println(path[:len(path)-4])
 		} else {
-			for _, child := range node.children {
+			keys := make([]string, 0, len(node.children))
+			for k := range node.children {
+				keys = append(keys, k)
+			}
+			sort.Strings(keys)
+			for _, k := range keys {
+				child := node.children[k]
 				printAllPaths(child, path)
 			}
 		}
@@ -169,6 +205,10 @@ func handleFuncNode(pass *analysis.Pass, analyzer *CallGraphAnalyzer, file *ast.
 		} else {
 			handleFuncNode(pass, analyzer, file, rawNode, sels[1], sels[0])
 		}
+	case *ast.FuncLit:
+		pos := pass.Fset.Position(x.Pos())
+		objname := ajustAnonymousName(pos, analyzer.goModuleName)
+		analyzer.cg.addNode(pass, analyzer, file, rawNode, objname)
 	}
 }
 

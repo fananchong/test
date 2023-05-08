@@ -1,6 +1,10 @@
 package main
 
-import "strings"
+import (
+	"fmt"
+	"go/token"
+	"strings"
+)
 
 func ajustPkgName(name string, goModuleName string) string {
 	index1 := strings.Index(name, "\"")
@@ -15,5 +19,18 @@ func ajustPkgName(name string, goModuleName string) string {
 	} else {
 		v := strings.Split(name, " ")
 		return v[1]
+	}
+}
+
+func ajustAnonymousName(pos token.Position, goModuleName string) string {
+	name := fmt.Sprintf("%v:%v", pos.Filename, pos.Line)
+	token := goModuleName + "/"
+	index := strings.Index(name, token)
+	if index > 0 {
+		s := fmt.Sprintf("[anonymous %v]", name[index+len(token):])
+		return s
+	} else {
+		s := fmt.Sprintf("[anonymous %v]", name)
+		return s
 	}
 }

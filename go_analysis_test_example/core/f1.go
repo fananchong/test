@@ -10,15 +10,19 @@ func Bar() {
 func C() {
 
 	f := func() {
-
+		Foo()
 	}
 
 	f()
 
 	func() {
-
+		Foo()
 		func() {
-
+			x := &X1{}
+			x.Y.GGG()
+			x.Y.Z.HHH()
+			x.Y.Z.Hello()
+			x.Y.Z.A1.Hello()
 		}()
 	}()
 

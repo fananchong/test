@@ -8,7 +8,7 @@ import (
 	"golang.org/x/tools/go/packages"
 )
 
-func Analysis(path string, analyzer *analysis.Analyzer) error {
+func Analysis(path, goModuleName string, analyzer *analysis.Analyzer) error {
 	err := os.Chdir(path)
 	if err != nil {
 		return err
@@ -19,7 +19,7 @@ func Analysis(path string, analyzer *analysis.Analyzer) error {
 	if err != nil {
 		return err
 	}
-	initCacheData(packages)
+	initCacheData(packages, goModuleName)
 	pass := &analysis.Pass{
 		Analyzer: analyzer,
 		Files:    []*ast.File{},
@@ -43,12 +43,16 @@ func Analysis(path string, analyzer *analysis.Analyzer) error {
 
 var func2pkg = make(map[*ast.Ident]string)
 var funcInFile = make(map[string][]*ast.FuncDecl)
+var anonymousInFile = make(map[string][]*ast.FuncLit)
 
-func initCacheData(pkgs []*packages.Package) {
+func initCacheData(pkgs []*packages.Package, goModuleName string) {
 	for _, pkgInfo := range pkgs {
 		for _, f := range pkgInfo.Syntax {
 			ast.Inspect(f, func(n ast.Node) bool {
 				switch x := n.(type) {
+				case *ast.FuncLit:
+					pos := pkgInfo.Fset.Position(x.Body.Lbrace)
+					anonymousInFile[pos.Filename] = append(anonymousInFile[pos.Filename], x)
 				case *ast.CallExpr:
 					if ident, ok := x.Fun.(*ast.Ident); ok {
 						if obj := pkgInfo.TypesInfo.ObjectOf(ident); obj != nil {

@@ -13,7 +13,7 @@ func main() {
 	flag.StringVar(&goModuleName, "go_module", "", "go module name")
 	flag.Parse()
 	analysis := NewCallGraphAnalyzer(goModuleName)
-	err := Analysis(path, analysis.Analyzer)
+	err := Analysis(path, goModuleName, analysis.Analyzer)
 	if err != nil {
 		fmt.Println(err)
 	}
