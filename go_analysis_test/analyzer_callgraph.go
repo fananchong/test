@@ -162,7 +162,22 @@ func handleFuncNode(pass *analysis.Pass, analyzer *CallGraphAnalyzer, file *ast.
 			}
 		}
 	case *ast.SelectorExpr:
-		handleFuncNode(pass, analyzer, file, rawNode, x.X, x.Sel)
+		sels := getAllSel(x)
+		if len(sels) == 1 {
+			handleFuncNode(pass, analyzer, file, rawNode, x.X, x.Sel)
+		} else {
+			handleFuncNode(pass, analyzer, file, rawNode, sels[1], sels[0])
+		}
+	}
+}
+
+func getAllSel(x *ast.SelectorExpr) []*ast.Ident {
+	if v, ok := x.X.(*ast.SelectorExpr); ok {
+		var s []*ast.Ident
+		s = append([]*ast.Ident{x.Sel}, getAllSel(v)...)
+		return s
+	} else {
+		return []*ast.Ident{x.Sel}
 	}
 }
 
