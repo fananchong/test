@@ -32,7 +32,7 @@ func newCallGraph() *callGraph {
 	}
 }
 
-func (cg *callGraph) addNode(pass *analysis.Pass, analyzer *CallGraphAnalyzer, file *ast.File, x ast.Node, nodeName string) {
+func (cg *callGraph) addNode(pass *analysis.Pass, analyzer *CallGraphAnalyzer, file *ast.File, x ast.Node, nodeName string) (*callGraphNode, *callGraphNode) {
 	if _, ok := cg.Nodes[nodeName]; !ok {
 		cg.Nodes[nodeName] = &callGraphNode{
 			parent:   map[string]*callGraphNode{},
@@ -41,12 +41,14 @@ func (cg *callGraph) addNode(pass *analysis.Pass, analyzer *CallGraphAnalyzer, f
 		}
 	}
 	node := cg.Nodes[nodeName]
-	if parent := cg.getParent(pass, analyzer, file, x); parent != nil {
+	var parent *callGraphNode
+	if parent = cg.getParent(pass, analyzer, file, x); parent != nil {
 		parent.addChild(node)
 		if _, ok := cg.Nodes[parent.name]; !ok {
 			cg.Nodes[parent.name] = parent
 		}
 	}
+	return node, parent
 }
 
 func (cg *callGraph) getParent(pass *analysis.Pass, analyzer *CallGraphAnalyzer, file *ast.File, node ast.Node) *callGraphNode {
@@ -190,8 +192,15 @@ func handleFuncNode(pass *analysis.Pass, analyzer *CallGraphAnalyzer, file *ast.
 	case *ast.Ident:
 		if obj := pass.TypesInfo.ObjectOf(x); obj != nil {
 			if sel == nil {
-				objname := getFuncName1(pass, analyzer, x, obj)
-				analyzer.cg.addNode(pass, analyzer, file, rawNode, objname)
+				var objname string
+				if _, ok := x.Obj.Decl.(*ast.AssignStmt); ok {
+					pos := pass.Fset.Position(x.Obj.Pos())
+					objname = ajustAnonymousName(pos, analyzer.goModuleName)
+					analyzer.cg.addNode(pass, analyzer, file, rawNode, objname)
+				} else {
+					objname = getFuncName1(pass, analyzer, x, obj)
+					analyzer.cg.addNode(pass, analyzer, file, rawNode, objname)
+				}
 			} else {
 				obj2 := pass.TypesInfo.ObjectOf(sel)
 				objname := getFuncName2(pass, analyzer, obj, obj2.Name())

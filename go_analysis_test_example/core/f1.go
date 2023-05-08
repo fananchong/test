@@ -3,17 +3,44 @@ package core
 func Foo() {
 }
 
+func Fxx() {
+	Foo()
+}
+
+func Fyy() {
+	Foo()
+}
+
+func Fhh() {
+	Foo()
+}
+
 func Bar() {
 	C()
 }
 
 func C() {
 
-	f := func() {
-		Foo()
+	d1 := func() {
+		Fhh()
 	}
 
-	f()
+	d1()
+
+	d2 := Fxx
+	d2()
+
+	d3, d4 := func() {
+		Foo()
+	}, Fyy
+	d3()
+
+	d4()
+
+	x := &X1{}
+
+	d5 := x.Y.Z.A1.Hello
+	d5()
 
 	func() {
 		Foo()
@@ -26,7 +53,6 @@ func C() {
 		}()
 	}()
 
-	x := &X1{}
 	x.FFF()
 	x.Y.GGG()
 	x.Y.Z.HHH()

@@ -76,6 +76,14 @@ func initCacheData(pkgs []*packages.Package, goModuleName string) {
 
 					pos := pkgInfo.Fset.Position(x.Body.Lbrace)
 					funcInFile[pos.Filename] = append(funcInFile[pos.Filename], x)
+				case *ast.AssignStmt:
+					for _, rhs := range x.Rhs {
+						switch robj := rhs.(type) {
+						case *ast.FuncLit:
+							pos := pkgInfo.Fset.Position(robj.Body.Lbrace)
+							anonymousInFile[pos.Filename] = append(anonymousInFile[pos.Filename], robj)
+						}
+					}
 				}
 				return true
 			})
