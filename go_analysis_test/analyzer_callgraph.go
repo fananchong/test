@@ -140,21 +140,6 @@ func run(pass *analysis.Pass, analyzer *CallGraphAnalyzer) (interface{}, error) 
 			case *ast.CallExpr:
 				handleFuncNode(pass, analyzer, file, n, x, nil)
 			}
-			// switch x := n.(type) {
-			// case *ast.CallExpr:
-			// 	if ident, ok := x.Fun.(*ast.Ident); ok {
-			// 		if obj := pass.TypesInfo.ObjectOf(ident); obj != nil {
-			// 			analyzer.cg.addNode(pass, analyzer, file, x, getFuncName1(pass, analyzer, ident, obj))
-			// 		}
-			// 	} else if se, ok := x.Fun.(*ast.SelectorExpr); ok {
-			// 		se2 := getLastSelectorExpr(se)
-			// 		if obj := pass.TypesInfo.ObjectOf(se2.Sel); obj != nil {
-			// 			obj2 := pass.TypesInfo.ObjectOf(se2.X.(*ast.Ident))
-			// 			objname := getFuncName2(pass, analyzer, obj2, obj.Name())
-			// 			analyzer.cg.addNode(pass, analyzer, file, x, objname)
-			// 		}
-			// 	}
-			// }
 			return true
 		})
 	}
@@ -178,16 +163,6 @@ func handleFuncNode(pass *analysis.Pass, analyzer *CallGraphAnalyzer, file *ast.
 		}
 	case *ast.SelectorExpr:
 		handleFuncNode(pass, analyzer, file, rawNode, x.X, x.Sel)
-	}
-}
-
-func getLastSelectorExpr(se *ast.SelectorExpr) *ast.SelectorExpr {
-	if _, ok := se.X.(*ast.Ident); ok {
-		return se
-	} else if _, ok := se.X.(*ast.CallExpr); ok {
-		panic("111")
-	} else {
-		return getLastSelectorExpr(se.X.(*ast.SelectorExpr))
 	}
 }
 
