@@ -42,6 +42,7 @@ func Analysis(path string, analyzer *analysis.Analyzer) error {
 }
 
 var func2pkg = make(map[*ast.Ident]string)
+var funcInFile = make(map[string][]*ast.FuncDecl)
 
 func initCacheData(pkgs []*packages.Package) {
 	for _, pkgInfo := range pkgs {
@@ -68,6 +69,9 @@ func initCacheData(pkgs []*packages.Package) {
 							}
 						}
 					}
+
+					pos := pkgInfo.Fset.Position(x.Body.Lbrace)
+					funcInFile[pos.Filename] = append(funcInFile[pos.Filename], x)
 				}
 				return true
 			})
