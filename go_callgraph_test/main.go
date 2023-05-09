@@ -147,7 +147,7 @@ func doCallgraph(algo string, tests bool, args []string) error {
 
 	excludePkgs := getexcludePkgs(*excludePkgs)
 	for _, node := range cg.Nodes {
-		if len(node.In) == 0 {
+		if len(node.In) == 0 && node.Func.Name() == "main" {
 			printAllPaths(node, "", excludePkgs)
 		}
 	}

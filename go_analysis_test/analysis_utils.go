@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"go/ast"
 	"go/token"
 	"strings"
 )
@@ -32,5 +33,15 @@ func ajustAnonymousName(pos token.Position, goModuleName string) string {
 	} else {
 		s := fmt.Sprintf("[anonymous %v]", name)
 		return s
+	}
+}
+
+func getAllSel(x *ast.SelectorExpr) []*ast.Ident {
+	if v, ok := x.X.(*ast.SelectorExpr); ok {
+		var s []*ast.Ident
+		s = append([]*ast.Ident{x.Sel}, getAllSel(v)...)
+		return s
+	} else {
+		return []*ast.Ident{x.Sel}
 	}
 }

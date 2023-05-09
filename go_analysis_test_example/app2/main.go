@@ -1,8 +1,7 @@
 package main
 
-import "go_analysis_test_example/core"
+import "go_analysis_test_example/app2/x2"
 
 func main() {
-	core.Foo2()
-	core.Bar2()
+	x2.F2()
 }

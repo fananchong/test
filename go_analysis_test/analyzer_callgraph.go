@@ -221,16 +221,6 @@ func handleFuncNode(pass *analysis.Pass, analyzer *CallGraphAnalyzer, file *ast.
 	}
 }
 
-func getAllSel(x *ast.SelectorExpr) []*ast.Ident {
-	if v, ok := x.X.(*ast.SelectorExpr); ok {
-		var s []*ast.Ident
-		s = append([]*ast.Ident{x.Sel}, getAllSel(v)...)
-		return s
-	} else {
-		return []*ast.Ident{x.Sel}
-	}
-}
-
 type CallGraphAnalyzer struct {
 	*analysis.Analyzer
 	cg           *callGraph
