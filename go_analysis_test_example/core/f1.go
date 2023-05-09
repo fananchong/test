@@ -1,6 +1,9 @@
 package core
 
+import "fmt"
+
 func Foo() {
+	fmt.Println("")
 }
 
 func Fxx() {

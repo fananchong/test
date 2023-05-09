@@ -1,34 +1,37 @@
 package core
 
-// func Foo2() {
-// }
+import "fmt"
 
-// func Bar2() {
-// 	C2()
-// }
+func Foo2() {
+	fmt.Println("")
+}
 
-// func C2() {
+func Bar2() {
+	C2()
+}
 
-// 	f2 := func() {
+func C2() {
 
-// 	}
+	f2 := func() {
 
-// 	f2()
+	}
 
-// 	func() {
+	f2()
 
-// 		func() {
+	func() {
 
-// 		}()
-// 	}()
+		func() {
 
-// 	x := &X2{}
-// 	x.FFF()
-// }
+		}()
+	}()
 
-// type X2 struct {
-// }
+	x := &X2{}
+	x.FFF()
+}
 
-// func (*X2) FFF() {
-// 	Foo2()
-// }
+type X2 struct {
+}
+
+func (*X2) FFF() {
+	Foo2()
+}
