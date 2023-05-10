@@ -1,7 +1,10 @@
 package main
 
-import "go_analysis_test_example/app1/x1"
+import (
+	"go_analysis_test_example/core/dir0"
+)
 
 func main() {
-	x1.F1()
+	dir0.F1()
+	// x1.F1()
 }
