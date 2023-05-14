@@ -23,11 +23,7 @@ import (
 	"flag"
 	"fmt"
 	"go/build"
-	"go/token"
-	"io"
 	"os"
-	"os/exec"
-	"sort"
 	"strings"
 
 	"golang.org/x/tools/go/buildutil"
@@ -88,8 +84,6 @@ func main() {
 	}
 }
 
-var stdout io.Writer = os.Stdout
-
 func doCallgraph(algo string, tests bool, args []string) error {
 	cfg := &packages.Config{
 		Mode:  packages.LoadAllSyntax,
@@ -145,40 +139,98 @@ func doCallgraph(algo string, tests bool, args []string) error {
 
 	// -- output------------------------------------------------------------
 
-	excludePkgs := getexcludePkgs(*excludePkgs)
-	for _, node := range cg.Nodes {
-		if len(node.In) == 0 && node.Func.Name() == "main" {
-			printAllPaths(node, "", excludePkgs)
+	// Find the node for the global variable "x".
+	var x []*ssa.Global
+	for _, pkg := range prog.AllPackages() {
+		for _, member := range pkg.Members {
+			if global, ok := member.(*ssa.Global); ok && strings.HasPrefix(global.Name(), "MyVar") {
+				x = append(x, global)
+			}
 		}
 	}
 
-	// tmpl, err := template.New("-format").Parse("{{.Caller}}\t--{{.Dynamic}}-{{.Line}}:{{.Column}}-->\t{{.Callee}}")
-	// if err != nil {
-	// 	return fmt.Errorf("invalid -format template: %v", err)
-	// }
-	// var buf bytes.Buffer
-	// data := Edge{fset: prog.Fset}
+	type targetInfo struct {
+		caller    *callgraph.Node
+		globalvar *ssa.Global
+		callee    *callgraph.Node
+	}
 
-	// if err := callgraph.GraphVisitEdges(cg, func(edge *callgraph.Edge) error {
-	// 	data.position.Offset = -1
-	// 	data.edge = edge
-	// 	data.Caller = edge.Caller.Func
-	// 	data.Callee = edge.Callee.Func
+	var targets []*targetInfo
+	seen := make(map[*callgraph.Node]bool)
+	if err := callgraph.GraphVisitEdges(cg, func(edge *callgraph.Edge) error {
+		caller := edge.Caller
+		if seen[caller] {
+			return nil
+		}
+		seen[caller] = true
+		for _, block := range caller.Func.Blocks {
+			for _, instr := range block.Instrs {
+				if call, ok := instr.(*ssa.Call); ok && len(call.Call.Args) > 0 {
+					if call.Call.Signature().Recv() != nil {
+						v := getGlobalValue(call.Call.Args[0])
+						for _, xv := range x {
+							if xv == v {
+								targets = append(targets, &targetInfo{caller, xv, edge.Callee})
+							}
+						}
+					}
+				}
+			}
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
 
-	// 	buf.Reset()
-	// 	if err := tmpl.Execute(&buf, &data); err != nil {
-	// 		return err
-	// 	}
-	// 	stdout.Write(buf.Bytes())
-	// 	if len := buf.Len(); len == 0 || buf.Bytes()[len-1] != '\n' {
-	// 		fmt.Fprintln(stdout)
-	// 	}
-	// 	return nil
-	// }); err != nil {
-	// 	return err
-	// }
+	var sources []*callgraph.Node
+	seen = make(map[*callgraph.Node]bool)
+	if err := callgraph.GraphVisitEdges(cg, func(edge *callgraph.Edge) error {
+		caller := edge.Caller
+		pkg := edge.Caller.Func.Pkg
+		if seen[caller] {
+			return nil
+		}
+		seen[caller] = true
+		if caller.Func.Name() == "main" && strings.HasPrefix(pkg.Pkg.Path(), "go_analysis_test_example") {
+			sources = append(sources, caller)
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+	seen = make(map[*callgraph.Node]bool)
+	if err := callgraph.GraphVisitEdges(cg, func(edge *callgraph.Edge) error {
+		caller := edge.Caller
+		pkg := edge.Caller.Func.Pkg
+		if seen[caller] {
+			return nil
+		}
+		seen[caller] = true
+		if caller.Func.Name() == "init" && strings.HasPrefix(pkg.Pkg.Path(), "go_analysis_test_example") {
+			sources = append(sources, caller)
+		}
+		return nil
+	}); err != nil {
+		return err
+	}
+
+	for _, source := range sources {
+		for _, target := range targets {
+			printeAllPath(source, target.caller, []*callgraph.Node{target.callee})
+		}
+	}
 
 	return nil
+}
+
+func getGlobalValue(arg ssa.Value) *ssa.Global {
+	if v, ok := arg.(*ssa.Global); ok {
+		return v
+	} else if v, ok := arg.(*ssa.UnOp); ok {
+		return getGlobalValue(v.X)
+	} else {
+		return nil
+	}
 }
 
 // mainPackages returns the main packages to analyze.
@@ -196,110 +248,22 @@ func mainPackages(pkgs []*ssa.Package) ([]*ssa.Package, error) {
 	return mains, nil
 }
 
-type Edge struct {
-	Caller *ssa.Function
-	Callee *ssa.Function
-
-	edge     *callgraph.Edge
-	fset     *token.FileSet
-	position token.Position // initialized lazily
-}
-
-func (e *Edge) pos() *token.Position {
-	if e.position.Offset == -1 {
-		e.position = e.fset.Position(e.edge.Pos()) // called lazily
-	}
-	return &e.position
-}
-
-func (e *Edge) Filename() string { return e.pos().Filename }
-func (e *Edge) Column() int      { return e.pos().Column }
-func (e *Edge) Line() int        { return e.pos().Line }
-func (e *Edge) Offset() int      { return e.pos().Offset }
-
-func (e *Edge) Dynamic() string {
-	if e.edge.Site != nil && e.edge.Site.Common().StaticCallee() == nil {
-		return "dynamic"
-	}
-	return "static"
-}
-
-func (e *Edge) Description() string { return e.edge.Description() }
-
-func printAllPaths(node *callgraph.Node, path string, excludePkgs map[string]struct{}) {
-	if node.Func == nil {
-		if len(path)-4 > 0 {
-			fmt.Println(path[:len(path)-4])
+func printeAllPath(source, target *callgraph.Node, path []*callgraph.Node) {
+	newPath := append([]*callgraph.Node{target}, path...)
+	if source == target {
+		fmt.Printf(newPath[0].Func.String())
+		for i := 1; i < len(newPath); i++ {
+			fmt.Printf(" --> ")
+			fmt.Printf(newPath[i].Func.String())
 		}
+		fmt.Printf("\n")
 		return
 	}
-	fname := node.Func.String()
-	if strings.Contains(path, fname+" ") {
-		path += fname + " <- [LOOP]"
-		fmt.Println(path)
+	if len(target.In) == 0 {
+		return
 	} else {
-		pkgname := node.Func.Pkg.Pkg.Path()
-		if _, ok := excludePkgs[pkgname]; ok {
-			if len(path)-4 > 0 {
-				fmt.Println(path[:len(path)-4])
-			}
-		} else {
-			path += fname + " -> "
-			if len(node.Out) == 0 {
-				fmt.Println(path[:len(path)-4])
-			} else {
-				for _, k := range node.Out {
-					child := k.Callee
-					printAllPaths(child, path, excludePkgs)
-				}
-			}
+		for _, child := range target.In {
+			printeAllPath(source, child.Caller, newPath)
 		}
 	}
-}
-
-func getexcludePkgs(excludePkgs string) map[string]struct{} {
-	cmd := exec.Command("go", "list", "std")
-	output, err := cmd.Output()
-	if err != nil {
-		panic(err)
-	}
-	pkgs := make(map[string]struct{})
-	for _, pkg := range strings.Split(string(output), "\n") {
-		pkgs[pkg] = struct{}{}
-		v := strings.ReplaceAll(pkg, "'", "")
-		if strings.HasPrefix(pkg, "vendor/") {
-			v = strings.TrimPrefix(pkg, "vendor/")
-		}
-		pkgs[v] = struct{}{}
-	}
-	cmd = exec.Command("go", "list", "-m", "-f", "'{{.Path}}'", "all")
-	output, err = cmd.Output()
-	if err != nil {
-		panic(err)
-	}
-	for _, pkg := range strings.Split(string(output), "\n") {
-		pkgs[pkg] = struct{}{}
-		v := strings.ReplaceAll(pkg, "'", "")
-		if strings.HasPrefix(pkg, "vendor/") {
-			v = strings.TrimPrefix(pkg, "vendor/")
-		}
-		pkgs[v] = struct{}{}
-	}
-	for _, v := range strings.Split(excludePkgs, ",") {
-		if v != "" {
-			pkgs[v] = struct{}{}
-		}
-	}
-
-	keys := make([]string, 0, len(pkgs))
-	for k := range pkgs {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-	for _, k := range keys {
-		if k != "" {
-			fmt.Printf("[Exclude] package %v\n", k)
-		}
-	}
-	return pkgs
 }

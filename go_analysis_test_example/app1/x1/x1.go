@@ -5,7 +5,7 @@ import (
 )
 
 var f = func() {
-	dir3.MyVar1.FFF()
+	dir3.MyVar2.FFF()
 }
 
 func F1() {

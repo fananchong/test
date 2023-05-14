@@ -9,3 +9,7 @@ func F1() {
 func F2() {
 	dir3.MyVar2.FFF()
 }
+
+func F3() {
+	dir3.MyVar1.FFF()
+}

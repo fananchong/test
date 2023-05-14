@@ -5,12 +5,7 @@ import (
 	"go_analysis_test_example/core/dir0"
 )
 
-func main() {
+func A2() {
 	dir0.F2()
 	x2.F2()
-	A2()
-
-	go func() {
-		dir0.F3()
-	}()
 }
