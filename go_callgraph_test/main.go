@@ -44,8 +44,6 @@ var (
 
 	testFlag = flag.Bool("test", false,
 		"Loads test code (*_test.go) for imported packages")
-	excludePkgs = flag.String("exclude_pkgs", "",
-		`Exclude some libraries specifically`)
 )
 
 func init() {
