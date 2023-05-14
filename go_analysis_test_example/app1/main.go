@@ -1,11 +1,14 @@
 package main
 
 import (
-	"go_analysis_test_example/app1/x1"
 	"go_analysis_test_example/core/dir0"
+	"go_analysis_test_example/core/dir4"
 )
 
 func main() {
-	dir0.F1()
-	x1.F1()
+
+	dir4.SetHandler(2, func() {
+		dir0.F1()
+	})
+	// dir4.GetHandler(1)()
 }

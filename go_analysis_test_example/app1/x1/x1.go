@@ -4,14 +4,14 @@ import (
 	"go_analysis_test_example/core/dir3"
 )
 
-var f = func() {
+var F = func() {
 	dir3.MyVar2.FFF()
 }
 
 func F1() {
 	dir3.MyVar1.FFF()
 
-	f()
+	F()
 
 	func() {
 		dir3.MyVar1.FFF()
