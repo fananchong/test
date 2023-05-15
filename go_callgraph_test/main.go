@@ -165,10 +165,14 @@ func doCallgraph(algo string, tests bool, args []string) error {
 			for _, instr := range block.Instrs {
 				if call, ok := instr.(*ssa.Call); ok && len(call.Call.Args) > 0 {
 					if call.Call.Signature().Recv() != nil {
-						v := getGlobalValue(call.Call.Args[0])
+						var embedded bool
+						v := getGlobalValue(call.Call.Args[0], &embedded)
 						for _, xv := range x {
 							if xv == v {
 								targets = append(targets, &targetInfo{caller, xv, edge.Callee})
+								if embedded {
+									embeddedCall[caller.ID] = append(embeddedCall[caller.ID], call)
+								}
 							}
 						}
 					}
@@ -179,53 +183,22 @@ func doCallgraph(algo string, tests bool, args []string) error {
 	}); err != nil {
 		return err
 	}
-
-	var sources []*callgraph.Node
-	seen = make(map[*callgraph.Node]bool)
-	if err := callgraph.GraphVisitEdges(cg, func(edge *callgraph.Edge) error {
-		caller := edge.Caller
-		pkg := edge.Caller.Func.Pkg
-		if seen[caller] {
-			return nil
-		}
-		seen[caller] = true
-		if caller.Func.Name() == "main" && strings.HasPrefix(pkg.Pkg.Path(), "go_analysis_test_example") {
-			sources = append(sources, caller)
-		}
-		return nil
-	}); err != nil {
-		return err
+	for _, target := range targets {
+		printeAllPath(target.caller, []*callgraph.Node{target.callee})
 	}
-	seen = make(map[*callgraph.Node]bool)
-	if err := callgraph.GraphVisitEdges(cg, func(edge *callgraph.Edge) error {
-		caller := edge.Caller
-		pkg := edge.Caller.Func.Pkg
-		if seen[caller] {
-			return nil
-		}
-		seen[caller] = true
-		if caller.Func.Name() == "init" && strings.HasPrefix(pkg.Pkg.Path(), "go_analysis_test_example") {
-			sources = append(sources, caller)
-		}
-		return nil
-	}); err != nil {
-		return err
-	}
-
-	for _, source := range sources {
-		for _, target := range targets {
-			printeAllPath(source, target.caller, []*callgraph.Node{target.callee})
-		}
-	}
-
 	return nil
 }
 
-func getGlobalValue(arg ssa.Value) *ssa.Global {
+var embeddedCall = map[int][]*ssa.Call{}
+
+func getGlobalValue(arg ssa.Value, embedded *bool) *ssa.Global {
 	if v, ok := arg.(*ssa.Global); ok {
 		return v
 	} else if v, ok := arg.(*ssa.UnOp); ok {
-		return getGlobalValue(v.X)
+		return getGlobalValue(v.X, embedded)
+	} else if v, ok := arg.(*ssa.FieldAddr); ok {
+		*embedded = true
+		return getGlobalValue(v.X, embedded)
 	} else {
 		return nil
 	}
@@ -246,9 +219,50 @@ func mainPackages(pkgs []*ssa.Package) ([]*ssa.Package, error) {
 	return mains, nil
 }
 
-func printeAllPath(source, target *callgraph.Node, path []*callgraph.Node) {
+func printeAllPath(target *callgraph.Node, path []*callgraph.Node) {
 	newPath := append([]*callgraph.Node{target}, path...)
-	if source == target {
+
+	if len(newPath) > 2 {
+		n0 := newPath[0]
+		n1 := newPath[1]
+		n2 := newPath[2]
+		if calls, ok := embeddedCall[n0.ID]; ok {
+			for _, call := range calls {
+				l1 := len(n1.Func.Params)
+				l2 := len(call.Call.Args)
+				if l1 == l2 {
+					check := true
+					for i := 0; i < l1; i++ {
+						if _, ok := call.Call.Args[i].(*ssa.Function); ok {
+							if n1.Func.Params[i].Type().String() != "func()" {
+								check = false
+							}
+						}
+					}
+					if check {
+						var find bool
+						for i := 1; i < len(call.Call.Args); i++ {
+							if n2.Func == call.Call.Args[i] {
+								find = true
+							}
+						}
+						if !find {
+							return
+						}
+					}
+				}
+			}
+		}
+	}
+
+	if len(target.In) == 0 {
+		if target.Func.Pkg.Pkg.Name() != "main" {
+			return
+		}
+		// if target.Func.Pkg.Pkg.Path() != "go_analysis_test_example/app1" {
+		// 	return
+		// }
+
 		fmt.Printf(newPath[0].Func.String())
 		for i := 1; i < len(newPath); i++ {
 			fmt.Printf(" --> ")
@@ -256,12 +270,9 @@ func printeAllPath(source, target *callgraph.Node, path []*callgraph.Node) {
 		}
 		fmt.Printf("\n")
 		return
-	}
-	if len(target.In) == 0 {
-		return
 	} else {
 		for _, child := range target.In {
-			printeAllPath(source, child.Caller, newPath)
+			printeAllPath(child.Caller, newPath)
 		}
 	}
 }

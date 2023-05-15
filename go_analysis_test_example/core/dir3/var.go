@@ -8,4 +8,5 @@ import (
 var (
 	MyVar1 *dir1.X1 = &dir1.X1{}
 	MyVar2 *dir2.X2 = &dir2.X2{}
+	MyVar3 *Y1      = NewY1()
 )
