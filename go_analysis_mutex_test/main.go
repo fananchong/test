@@ -10,10 +10,16 @@ var path string
 func main() {
 	flag.StringVar(&path, "path", "", "package path")
 	flag.Parse()
-	analysis := NewVarAnalyzer()
-	err := Analysis(path, analysis.Analyzer)
+
+	cg, prog, err := doCallgraph("vta", false, []string{fmt.Sprintf("%s/...", path)})
 	if err != nil {
-		fmt.Println(err)
+		panic(err)
 	}
-	analysis.Print()
+
+	analyzer := NewVarAnalyzer(cg, prog)
+	err = Analysis(path, analyzer.Analyzer)
+	if err != nil {
+		panic(err)
+	}
+	analyzer.Print()
 }

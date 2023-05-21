@@ -21,4 +21,11 @@ func f2() {
 
 func init() {
 	f2()
+	f3()
+}
+
+func f3() {
+	var m2 sync.Mutex
+	m2.Lock()
+	defer m2.Unlock()
 }

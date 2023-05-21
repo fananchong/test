@@ -4,8 +4,8 @@ import "fmt"
 
 func f2() {
 	{
-		m.Lock()
-		defer m.Unlock()
+		m1.Lock()
+		defer m1.Unlock()
 		fmt.Println(a)
 	}
 	b = make(map[int]int)
