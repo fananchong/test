@@ -228,27 +228,15 @@ func printeAllPath(target *callgraph.Node, path []*callgraph.Node) {
 		n2 := newPath[2]
 		if calls, ok := embeddedCall[n0.ID]; ok {
 			for _, call := range calls {
-				l1 := len(n1.Func.Params)
-				l2 := len(call.Call.Args)
-				if l1 == l2 {
-					check := true
-					for i := 0; i < l1; i++ {
-						if _, ok := call.Call.Args[i].(*ssa.Function); ok {
-							if n1.Func.Params[i].Type().String() != "func()" {
-								check = false
-							}
+				if n1.Func == call.Call.Value {
+					var find bool
+					for i := 1; i < len(call.Call.Args); i++ {
+						if n2.Func == call.Call.Args[i] {
+							find = true
 						}
 					}
-					if check {
-						var find bool
-						for i := 1; i < len(call.Call.Args); i++ {
-							if n2.Func == call.Call.Args[i] {
-								find = true
-							}
-						}
-						if !find {
-							return
-						}
+					if !find {
+						return
 					}
 				}
 			}
@@ -259,9 +247,9 @@ func printeAllPath(target *callgraph.Node, path []*callgraph.Node) {
 		if target.Func.Pkg.Pkg.Name() != "main" {
 			return
 		}
-		// if target.Func.Pkg.Pkg.Path() != "go_analysis_test_example/app1" {
-		// 	return
-		// }
+		if target.Func.Pkg.Pkg.Path() != "go_analysis_test_example/app1" {
+			return
+		}
 
 		fmt.Printf(newPath[0].Func.String())
 		for i := 1; i < len(newPath); i++ {
