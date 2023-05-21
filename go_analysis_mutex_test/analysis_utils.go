@@ -1,47 +1,33 @@
 package main
 
-import (
-	"fmt"
-	"go/ast"
-	"go/token"
-	"strings"
-)
+import "go/ast"
 
-func ajustPkgName(name string, goModuleName string) string {
-	index1 := strings.Index(name, "\"")
-	if index1 > 0 {
-		index2 := strings.LastIndex(name, "\"")
-		s := name[index1+1 : index2]
-		if strings.HasPrefix(s, goModuleName) {
-			return s[len(goModuleName)+1:]
-		} else {
-			return s
-		}
-	} else {
-		v := strings.Split(name, " ")
-		return v[1]
+func isSyncMutexType(expr ast.Expr) bool {
+	ident, ok := expr.(*ast.SelectorExpr)
+	if !ok || ident.X == nil || ident.Sel == nil {
+		return false
 	}
+	x, ok := ident.X.(*ast.Ident)
+	sel := ident.Sel
+	if !ok {
+		return false
+	}
+	return sel.Name == "Mutex" && x.Name == "sync"
 }
 
-func ajustAnonymousName(pos token.Position, goModuleName string) string {
-	name := fmt.Sprintf("%v:%v", pos.Filename, pos.Line)
-	token := goModuleName + "/"
-	index := strings.Index(name, token)
-	if index > 0 {
-		s := fmt.Sprintf("[anonymous %v]", name[index+len(token):])
-		return s
-	} else {
-		s := fmt.Sprintf("[anonymous %v]", name)
-		return s
+func isSyncRWMutexType(expr ast.Expr) bool {
+	ident, ok := expr.(*ast.SelectorExpr)
+	if !ok || ident.X == nil || ident.Sel == nil {
+		return false
 	}
+	x, ok := ident.X.(*ast.Ident)
+	sel := ident.Sel
+	if !ok {
+		return false
+	}
+	return sel.Name == "RWMutex" && x.Name == "sync"
 }
 
-func getAllSel(x *ast.SelectorExpr) []*ast.Ident {
-	if v, ok := x.X.(*ast.SelectorExpr); ok {
-		var s []*ast.Ident
-		s = append([]*ast.Ident{x.Sel}, getAllSel(v)...)
-		return s
-	} else {
-		return []*ast.Ident{x.Sel}
-	}
+func isMutexType(expr ast.Expr) bool {
+	return isSyncMutexType(expr) || isSyncRWMutexType(expr)
 }

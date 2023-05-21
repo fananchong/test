@@ -1,18 +1,33 @@
 package main
 
 import (
-	"fmt"
 	"go/ast"
+	"go/token"
 
 	"golang.org/x/tools/go/analysis"
 )
 
+// comment := ""
+// if valueSpec.Comment != nil {
+// 	comment = strings.Trim(valueSpec.Comment.Text(), " ")
+// }
+// fmt.Println(comment)
+
 func runVarAnalyzer(pass *analysis.Pass, analyzer *VarAnalyzer) (interface{}, error) {
 	for _, file := range pass.Files {
-		ast.Inspect(file, func(n ast.Node) bool {
-			switch x := n.(type) {
-			case *ast.CallExpr:
-				handleFuncNodeVarAnalyzer(pass, analyzer, file, n, x, nil)
+		mutexVars := map[string][]*ast.ValueSpec{}
+		ast.Inspect(file, func(node ast.Node) bool {
+			if genDecl, ok := node.(*ast.GenDecl); ok && genDecl.Tok == token.VAR {
+				for _, spec := range genDecl.Specs {
+					if valueSpec, ok := spec.(*ast.ValueSpec); ok {
+						if valueSpec.Type == nil {
+							continue
+						}
+						if isMutexType(valueSpec.Type) {
+							mutexVars[valueSpec.Names[0].String()] = append(mutexVars[valueSpec.Names[0].String()], valueSpec)
+						}
+					}
+				}
 			}
 			return true
 		})
@@ -20,34 +35,14 @@ func runVarAnalyzer(pass *analysis.Pass, analyzer *VarAnalyzer) (interface{}, er
 	return nil, nil
 }
 
-func handleFuncNodeVarAnalyzer(pass *analysis.Pass, analyzer *VarAnalyzer, file *ast.File, rawNode ast.Node, n interface{}, sel *ast.Ident) {
-	switch x := n.(type) {
-	case *ast.CallExpr:
-		handleFuncNodeVarAnalyzer(pass, analyzer, file, rawNode, x.Fun, nil)
-	case *ast.Ident:
-		if obj := pass.TypesInfo.ObjectOf(x); obj != nil {
-			if sel != nil {
-				analyzer.vars[x.Name] = obj.Type().String()
-			}
-		}
-	case *ast.SelectorExpr:
-		sels := getAllSel(x)
-		if len(sels) == 1 {
-			handleFuncNodeVarAnalyzer(pass, analyzer, file, rawNode, x.X, x.Sel)
-		} else {
-			handleFuncNodeVarAnalyzer(pass, analyzer, file, rawNode, sels[1], sels[0])
-		}
-	}
-}
-
 type VarAnalyzer struct {
 	*analysis.Analyzer
-	vars map[string]string
+	vars map[*ast.ValueSpec]*ast.ValueSpec // key : 变量； value mutex
 }
 
 func NewVarAnalyzer() *VarAnalyzer {
 	analyzer := &VarAnalyzer{
-		vars: map[string]string{},
+		vars: map[*ast.ValueSpec]*ast.ValueSpec{},
 	}
 	analyzer.Analyzer = &analysis.Analyzer{
 		Name: "var",
@@ -58,7 +53,7 @@ func NewVarAnalyzer() *VarAnalyzer {
 }
 
 func (analyzer *VarAnalyzer) Print() {
-	for k, v := range analyzer.vars {
-		fmt.Println(k, v)
-	}
+	// for k, v := range analyzer.vars {
+	// 	fmt.Println(k, v)
+	// }
 }
