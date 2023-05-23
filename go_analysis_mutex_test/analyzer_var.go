@@ -84,20 +84,64 @@ func (analyzer *VarAnalyzer) step1FindGlobalVar(pass *analysis.Pass) {
 	}
 }
 
+func (analyzer *VarAnalyzer) step2FindCaller() {
+	seen := make(map[*callgraph.Node]bool)
+	f := func(edge *callgraph.Edge) error {
+		caller := edge.Caller
+		if seen[caller] {
+			return nil
+		}
+		if caller.Func == nil {
+			return nil
+		}
+		seen[caller] = true
+		if caller.Func.Name() == "init" {
+			return nil
+		}
+		usesVar := func(instr ssa.Instruction, v *types.Var) bool {
+			for _, op := range instr.Operands(nil) {
+				if varRef, ok := (*op).(*ssa.Global); ok && varRef.Object() == v {
+					return true
+				}
+			}
+			return false
+		}
+		for _, block := range caller.Func.Blocks {
+			for _, instr := range block.Instrs {
+				for k := range analyzer.vars {
+					if usesVar(instr, k) {
+						if _, ok := analyzer.callers[k]; !ok {
+							analyzer.callers[k] = make(map[*callgraph.Node]bool)
+						}
+						analyzer.callers[k][caller] = true
+					}
+				}
+			}
+		}
+		return nil
+	}
+	if err := callgraph.GraphVisitEdges(analyzer.cg, f); err != nil {
+		return
+	}
+	return
+}
+
 type VarAnalyzer struct {
 	*analysis.Analyzer
-	path string
-	cg   *callgraph.Graph
-	prog *ssa.Program
-	vars map[*types.Var]*types.Var // key : 变量； value mutex
+	path    string
+	cg      *callgraph.Graph
+	prog    *ssa.Program
+	vars    map[*types.Var]*types.Var // key : 变量； value mutex
+	callers map[*types.Var]map[*callgraph.Node]bool
 }
 
 func NewVarAnalyzer(path string, cg *callgraph.Graph, prog *ssa.Program) *VarAnalyzer {
 	analyzer := &VarAnalyzer{
-		path: path,
-		cg:   cg,
-		prog: prog,
-		vars: map[*types.Var]*types.Var{},
+		path:    path,
+		cg:      cg,
+		prog:    prog,
+		vars:    map[*types.Var]*types.Var{},
+		callers: map[*types.Var]map[*callgraph.Node]bool{},
 	}
 	analyzer.Analyzer = &analysis.Analyzer{
 		Name: "var",
@@ -113,7 +157,7 @@ func (analyzer *VarAnalyzer) Analysis() {
 		panic(err)
 	}
 	// 2. 获取哪些函数 B ，直接使用了全局变量 A
-
+	analyzer.step2FindCaller()
 }
 
 func (analyzer *VarAnalyzer) Print() {
