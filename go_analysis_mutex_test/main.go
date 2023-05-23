@@ -16,10 +16,7 @@ func main() {
 		panic(err)
 	}
 
-	analyzer := NewVarAnalyzer(cg, prog)
-	err = Analysis(path, analyzer.Analyzer)
-	if err != nil {
-		panic(err)
-	}
+	analyzer := NewVarAnalyzer(path, cg, prog)
+	analyzer.Analysis()
 	analyzer.Print()
 }
