@@ -126,22 +126,91 @@ func (analyzer *VarAnalyzer) step2FindCaller() {
 	return
 }
 
+func (analyzer *VarAnalyzer) step3CutCaller() {
+	for v := range analyzer.callers {
+		m := analyzer.vars[v]
+		callers := analyzer.callers[v]
+
+		findInstr := func(block *ssa.BasicBlock, v *types.Var) (instrs []ssa.Instruction) {
+			for _, instr := range block.Instrs {
+				for _, op := range instr.Operands(nil) {
+					if varRef, ok := (*op).(*ssa.Global); ok && varRef.Object() == v {
+						instrs = append(instrs, instr)
+					}
+				}
+			}
+			return
+		}
+
+		checkMutex := func(mInstr []ssa.Instruction) {
+			if mInstr == nil {
+				return
+			}
+			for _, instr := range mInstr {
+				if c, ok := instr.(*ssa.Call); ok {
+					fn := c.Common().StaticCallee()
+					if fn.Name() == "Unlock" || fn.Name() == "RUnlock" {
+						pos := analyzer.prog.Fset.Position(instr.Pos())
+						fmt.Printf("[mutex lint] %v:%v mutex 没有使用 defer 方式，调用 Unlock/RUnlock\n", pos.Filename, pos.Line)
+						os.Exit(1)
+					}
+				}
+			}
+		}
+
+		checkVar := func(mInstr, vInstr []ssa.Instruction) bool {
+			if mInstr == nil && vInstr == nil {
+				return true
+			}
+			if mInstr != nil && vInstr != nil {
+				mPos := analyzer.prog.Fset.Position(mInstr[0].Pos())
+				vPos := analyzer.prog.Fset.Position(vInstr[0].Pos())
+				if mPos.Line < vPos.Line {
+					return true
+				}
+			}
+			return false
+		}
+
+		for caller := range callers {
+			var find bool
+			for _, block := range caller.Func.Blocks {
+				mInstr := findInstr(block, m)
+				vInstr := findInstr(block, v)
+				checkMutex(mInstr)
+				if !checkVar(mInstr, vInstr) {
+					find = true
+					break
+				}
+			}
+			if find {
+				if _, ok := analyzer.callers2[v]; !ok {
+					analyzer.callers2[v] = make(map[*callgraph.Node]bool)
+				}
+				analyzer.callers2[v][caller] = true
+			}
+		}
+	}
+}
+
 type VarAnalyzer struct {
 	*analysis.Analyzer
-	path    string
-	cg      *callgraph.Graph
-	prog    *ssa.Program
-	vars    map[*types.Var]*types.Var // key : 变量； value mutex
-	callers map[*types.Var]map[*callgraph.Node]bool
+	path     string
+	cg       *callgraph.Graph
+	prog     *ssa.Program
+	vars     map[*types.Var]*types.Var // key : 变量； value mutex
+	callers  map[*types.Var]map[*callgraph.Node]bool
+	callers2 map[*types.Var]map[*callgraph.Node]bool
 }
 
 func NewVarAnalyzer(path string, cg *callgraph.Graph, prog *ssa.Program) *VarAnalyzer {
 	analyzer := &VarAnalyzer{
-		path:    path,
-		cg:      cg,
-		prog:    prog,
-		vars:    map[*types.Var]*types.Var{},
-		callers: map[*types.Var]map[*callgraph.Node]bool{},
+		path:     path,
+		cg:       cg,
+		prog:     prog,
+		vars:     map[*types.Var]*types.Var{},
+		callers:  map[*types.Var]map[*callgraph.Node]bool{},
+		callers2: map[*types.Var]map[*callgraph.Node]bool{},
 	}
 	analyzer.Analyzer = &analysis.Analyzer{
 		Name: "var",
@@ -158,6 +227,8 @@ func (analyzer *VarAnalyzer) Analysis() {
 	}
 	// 2. 获取哪些函数 B ，直接使用了全局变量 A
 	analyzer.step2FindCaller()
+	// 3. 剔除 B 中有加锁的函数，得 C
+	analyzer.step3CutCaller()
 }
 
 func (analyzer *VarAnalyzer) Print() {
