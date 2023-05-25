@@ -5,7 +5,6 @@ import (
 	"go/ast"
 	"go/token"
 	"go/types"
-	"os"
 	"strings"
 
 	"golang.org/x/tools/go/analysis"
@@ -56,24 +55,24 @@ func (analyzer *VarAnalyzer) step1FindGlobalVar(pass *analysis.Pass) {
 			}
 			if comment == "" {
 				fmt.Printf("[mutex lint] %v:%v mutex 变量没有注释，指明它要保护的变量\n", pos.Filename, pos.Line)
-				os.Exit(1)
+				continue
 			}
 			varNames := strings.Split(comment, ",")
 			if i+1+len(varNames) > len(file.Decls) {
 				fmt.Printf("[mutex lint] %v:%v mutex 变量注释有误，它要保护的变量未声明\n", pos.Filename, pos.Line)
-				os.Exit(1)
+				continue
 			}
 			for j := 1; j <= len(varNames); j++ {
 				genDecl, ok := file.Decls[i+j].(*ast.GenDecl)
 				if !ok || genDecl.Tok != token.VAR {
 					fmt.Printf("[mutex lint] %v:%v mutex 变量注释中的变量 %v ，声明不对\n", pos.Filename, pos.Line+j, varNames[j-1])
-					os.Exit(1)
+					break
 				}
 				spec := genDecl.Specs[0]
 				if valueSpec, ok := spec.(*ast.ValueSpec); !ok || valueSpec.Names[0].Name != varNames[j-1] {
 					pos := pass.Fset.Position(spec.Pos())
 					fmt.Printf("[mutex lint] %v:%v mutex 变量注释中的变量 %v ，声明不对\n", pos.Filename, pos.Line, varNames[j-1])
-					os.Exit(1)
+					break
 				} else {
 					pos := pass.Fset.Position(spec.Pos())
 					v := getGlobalVarByPos(analyzer.prog, pos)
@@ -131,64 +130,54 @@ func (analyzer *VarAnalyzer) step3CutCaller() {
 		m := analyzer.vars[v]
 		callers := analyzer.callers[v]
 
-		findInstr := func(block *ssa.BasicBlock, v *types.Var) (instrs []ssa.Instruction) {
-			for _, instr := range block.Instrs {
-				for _, op := range instr.Operands(nil) {
-					if varRef, ok := (*op).(*ssa.Global); ok && varRef.Object() == v {
-						instrs = append(instrs, instr)
-					}
-				}
-			}
-			return
-		}
-
-		checkMutex := func(mInstr []ssa.Instruction) {
-			if mInstr == nil {
-				return
-			}
-			for _, instr := range mInstr {
-				if c, ok := instr.(*ssa.Call); ok {
-					fn := c.Common().StaticCallee()
-					if fn.Name() == "Unlock" || fn.Name() == "RUnlock" {
-						pos := analyzer.prog.Fset.Position(instr.Pos())
-						fmt.Printf("[mutex lint] %v:%v mutex 没有使用 defer 方式，调用 Unlock/RUnlock\n", pos.Filename, pos.Line)
-						os.Exit(1)
-					}
-				}
-			}
-		}
-
-		checkVar := func(mInstr, vInstr []ssa.Instruction) bool {
-			if mInstr == nil && vInstr == nil {
-				return true
-			}
-			if mInstr != nil && vInstr != nil {
-				mPos := analyzer.prog.Fset.Position(mInstr[0].Pos())
-				vPos := analyzer.prog.Fset.Position(vInstr[0].Pos())
-				if mPos.Line < vPos.Line {
-					return true
-				}
-			}
-			return false
-		}
-
 		for caller := range callers {
-			var find bool
-			for _, block := range caller.Func.Blocks {
-				mInstr := findInstr(block, m)
-				vInstr := findInstr(block, v)
-				checkMutex(mInstr)
-				if !checkVar(mInstr, vInstr) {
-					find = true
-					break
-				}
-			}
-			if find {
+			if !checkVarHaveMutex(analyzer.prog, caller, m, v) {
 				if _, ok := analyzer.callers2[v]; !ok {
 					analyzer.callers2[v] = make(map[*callgraph.Node]bool)
 				}
 				analyzer.callers2[v][caller] = true
 			}
+		}
+	}
+}
+
+func (analyzer *VarAnalyzer) step4CheckPath(myvar *types.Var, target *callgraph.Node, paths []*callgraph.Node, seen map[*callgraph.Node]bool, checkFail *string) {
+	if seen[target] {
+		return
+	}
+	seen[target] = true
+
+	if *checkFail != "" {
+		return
+	}
+
+	newPaths := append([]*callgraph.Node{target}, paths...)
+	var looped bool
+	for _, v := range paths {
+		if v.Func == target.Func {
+			looped = true
+			break
+		}
+	}
+
+	// 检查是否有 mutex
+	mymutex := analyzer.vars[myvar]
+	if checkHaveMutex(analyzer.prog, target, mymutex) {
+		return
+	}
+
+	// 如果超出本包，则报错
+	if target.Func.Pkg.Pkg != myvar.Pkg() {
+		*checkFail = printPaht(newPaths, looped)
+		return
+	}
+
+	if len(target.In) == 0 || looped {
+		*checkFail = printPaht(newPaths, looped)
+		return
+	} else {
+		for _, in := range target.In {
+			analyzer.step4CheckPath(myvar, in.Caller, newPaths, seen, checkFail)
 		}
 	}
 }
@@ -229,6 +218,18 @@ func (analyzer *VarAnalyzer) Analysis() {
 	analyzer.step2FindCaller()
 	// 3. 剔除 B 中有加锁的函数，得 C
 	analyzer.step3CutCaller()
+	// 4. 查看调用关系，逆向检查上级调用是否加锁
+	for v, nodes := range analyzer.callers2 {
+		for node := range nodes {
+			var checkFail string
+			analyzer.step4CheckPath(v, node, []*callgraph.Node{}, map[*callgraph.Node]bool{}, &checkFail)
+			if checkFail != "" {
+				pos := analyzer.prog.Fset.Position(v.Pos())
+				fmt.Printf("[mutex lint] %v:%v 没有调用 mutex lock 。调用链：%v\n", pos.Filename, pos.Line, checkFail)
+				break
+			}
+		}
+	}
 }
 
 func (analyzer *VarAnalyzer) Print() {

@@ -7,7 +7,7 @@ var a int
 var b = map[int]int{}
 var c string
 
-func f1() {
+func F1() {
 	m1.Lock()
 	defer m1.Unlock()
 	a++

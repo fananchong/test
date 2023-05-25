@@ -2,12 +2,12 @@ package test1
 
 import "fmt"
 
-func f2() {
+func F2() {
 	func() {
 		m1.Lock()
 		defer m1.Unlock()
-		fmt.Println(a)
+		_ = fmt.Sprintf("%v", a)
 	}()
-	fmt.Println(b)
-	fmt.Println(c)
+	_ = fmt.Sprintf("%v", b)
+	_ = fmt.Sprintf("%v", c)
 }
