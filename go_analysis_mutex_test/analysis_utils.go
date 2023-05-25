@@ -159,3 +159,14 @@ func printPaht(newPath []*callgraph.Node, looped bool) string {
 	}
 	return s
 }
+
+func isGoroutine(fn *ssa.Function) bool {
+	if fn.Referrers() != nil {
+		for _, r := range *fn.Referrers() {
+			if _, ok := r.(*ssa.Go); ok {
+				return true
+			}
+		}
+	}
+	return false
+}

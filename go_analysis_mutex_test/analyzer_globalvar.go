@@ -172,6 +172,12 @@ func (analyzer *VarAnalyzer) step4CheckPath(myvar *types.Var, target *callgraph.
 		return
 	}
 
+	// 如果已经是协程起点，则报错
+	if isGoroutine(target.Func) {
+		*checkFail = printPaht(newPaths, looped)
+		return
+	}
+
 	if len(target.In) == 0 || looped {
 		*checkFail = printPaht(newPaths, looped)
 		return
