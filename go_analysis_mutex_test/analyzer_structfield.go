@@ -35,13 +35,13 @@ func (analyzer *StructFieldAnalyzer) step1FindStructField(pass *analysis.Pass) {
 							}
 							if comment == "" {
 								pos := pass.Fset.Position(field.Pos())
-								fmt.Printf("[mutex lint] %v:%v mutex 变量没有注释，指明它要保护的变量\n", pos.Filename, pos.Line)
+								fmt.Printf("[mutex lint] %v:%v mutex 变量没有注释，指明它要锁的变量\n", pos.Filename, pos.Line)
 								continue
 							}
 							varNames := strings.Split(comment, ",")
 							if i+1+len(varNames) > len(fields) {
 								pos := pass.Fset.Position(field.Pos())
-								fmt.Printf("[mutex lint] %v:%v mutex 变量注释有误，它要保护的变量未声明\n", pos.Filename, pos.Line)
+								fmt.Printf("[mutex lint] %v:%v mutex 变量注释有误，它要锁的变量未声明\n", pos.Filename, pos.Line)
 								continue
 							}
 							for j := 1; j <= len(varNames); j++ {
