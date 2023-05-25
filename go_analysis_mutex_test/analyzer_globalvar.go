@@ -131,7 +131,7 @@ func (analyzer *VarAnalyzer) step3CutCaller() {
 		callers := analyzer.callers[v]
 
 		for caller := range callers {
-			if !checkVarHaveMutex(analyzer.prog, caller, m, v) {
+			if !checkGlobalVarHaveMutex(analyzer.prog, caller, m, v) {
 				if _, ok := analyzer.callers2[v]; !ok {
 					analyzer.callers2[v] = make(map[*callgraph.Node]bool)
 				}
@@ -162,7 +162,7 @@ func (analyzer *VarAnalyzer) step4CheckPath(myvar *types.Var, target *callgraph.
 
 	// 检查是否有 mutex
 	mymutex := analyzer.vars[myvar]
-	if checkHaveMutex(analyzer.prog, target, mymutex) {
+	if checkGlobalVarHaveMutex2(analyzer.prog, target, mymutex) {
 		return
 	}
 
@@ -208,8 +208,8 @@ func NewVarAnalyzer(path string, cg *callgraph.Graph, prog *ssa.Program) *VarAna
 		callers2: map[*types.Var]map[*callgraph.Node]bool{},
 	}
 	analyzer.Analyzer = &analysis.Analyzer{
-		Name: "var",
-		Doc:  "prints var",
+		Name: "globalvar",
+		Doc:  "prints global var",
 		Run:  func(p *analysis.Pass) (interface{}, error) { return analyzer.runOne(prog, p) },
 	}
 	return analyzer

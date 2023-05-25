@@ -24,7 +24,11 @@ func main() {
 		panic(err)
 	}
 
-	analyzer := NewVarAnalyzer(path, cg, prog)
-	analyzer.Analysis()
-	analyzer.Print()
+	analyzer1 := NewVarAnalyzer(path, cg, prog)
+	analyzer1.Analysis()
+	analyzer1.Print()
+
+	analyzer2 := NewStructFieldAnalyzer(path, cg, prog)
+	analyzer2.Analysis()
+	analyzer2.Print()
 }

@@ -3,8 +3,9 @@ package test2
 import "sync"
 
 type A1 struct {
-	M sync.RWMutex // A
+	M sync.RWMutex // A,B
 	A int
+	B string
 }
 
 func (a1 *A1) f1() {
@@ -16,7 +17,7 @@ func (a1 *A1) f1() {
 func f2() {
 	var a1 A1
 	a1.f1()
-	a1.A = 2
+	a1.B = "2"
 }
 
 func init() {
