@@ -129,7 +129,7 @@ func checkStructFieldHaveMutex2(prog *ssa.Program, caller *callgraph.Node, m *ty
 
 func checkVar(prog *ssa.Program, mInstr, vInstr []ssa.Instruction) bool {
 	if mInstr == nil && vInstr == nil {
-		panic("不会走到这里，逻辑错误")
+		return false
 	}
 	if mInstr != nil && vInstr != nil {
 		mPos := prog.Fset.Position(mInstr[0].Pos())

@@ -14,7 +14,7 @@ func test() {
 }
 
 func main() {
-	flag.StringVar(&path, "path", "", "package path")
+	flag.StringVar(&path, "path", ".", "package path")
 	flag.Parse()
 
 	test()

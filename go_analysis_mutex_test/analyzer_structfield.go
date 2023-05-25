@@ -77,10 +77,6 @@ func (analyzer *StructFieldAnalyzer) step2FindCaller() {
 		if caller.Func.Name() == "init" {
 			return nil
 		}
-		n := caller.Func.Name()
-		if strings.HasSuffix(n, "f1") {
-			fmt.Println(n)
-		}
 		for _, block := range caller.Func.Blocks {
 			for _, instr := range block.Instrs {
 				if fieldAddr, ok := instr.(*ssa.FieldAddr); ok && fieldAddr.X != nil {
