@@ -72,6 +72,9 @@ func (analyzer *StructFieldAnalyzer) FindCaller(edge *callgraph.Edge, seen map[*
 	}
 	for _, block := range caller.Func.Blocks {
 		for _, instr := range block.Instrs {
+			if instr.Pos() == token.NoPos {
+				continue
+			}
 			if fieldAddr, ok := instr.(*ssa.FieldAddr); ok && fieldAddr.X != nil {
 				if pointerType, ok := fieldAddr.X.Type().Underlying().(*types.Pointer); ok {
 					if structType, ok := pointerType.Elem().Underlying().(*types.Struct); ok {

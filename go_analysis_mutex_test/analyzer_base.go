@@ -5,6 +5,7 @@ import (
 	"go/ast"
 	"go/token"
 	"go/types"
+	"sort"
 
 	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/callgraph"
@@ -132,13 +133,27 @@ func (analyzer *BaseAnalyzer) Analysis() {
 	analyzer.step3CutCaller()
 	// 4. 查看调用关系，逆向检查上级调用是否加锁
 	seen := make(map[string]bool)
-	for v, nodes := range analyzer.callers2 {
+
+	var keys sort.StringSlice
+	m := map[string]*types.Var{}
+	for v := range analyzer.callers2 {
+		keys = append(keys, v.Name())
+		m[v.Name()] = v
+	}
+	sort.Sort(keys)
+	for _, key := range keys {
+		v := m[key]
+		nodes := analyzer.callers2[v]
 		for node, varCallPos := range nodes {
 			var checkFail string
 			analyzer.step4CheckPath(v, varCallPos, node, []*callgraph.Node{}, map[*callgraph.Node]bool{}, &checkFail)
 			if checkFail != "" {
 				if _, ok := seen[checkFail]; !ok {
-					fmt.Printf("[mutex lint] %v:%v 没有调用 mutex lock 。调用链：%v\n", varCallPos.Filename, varCallPos.Line, checkFail)
+					if varCallPos.Filename == "" {
+						fmt.Printf("[mutex lint] %v:%v 没有调用 mutex lock 。调用链：%v\n", varCallPos.Filename, varCallPos.Line, checkFail)
+					} else {
+						fmt.Printf("[mutex lint] %v:%v 没有调用 mutex lock 。\n", varCallPos.Filename, varCallPos.Line)
+					}
 				}
 				seen[checkFail] = true
 			}
