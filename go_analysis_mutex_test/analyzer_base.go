@@ -87,6 +87,7 @@ func (analyzer *BaseAnalyzer) step4CheckPath(myvar *types.Var, varCallPos token.
 		return
 	} else {
 		for _, in := range target.In {
+			*checkFail = ""
 			analyzer.step4CheckPath(myvar, varCallPos, in.Caller, newPaths, seen, checkFail)
 		}
 	}
@@ -190,26 +191,12 @@ func checkVar(prog *ssa.Program, mInstr, vInstr []ssa.Instruction) bool {
 	return false
 }
 
-func checkMutex(prog *ssa.Program, mInstr []ssa.Instruction) {
-	if mInstr == nil {
-		return
-	}
-	// for _, instr := range mInstr {
-	// 	if c, ok := instr.(*ssa.Call); ok {
-	// 		if c.Call.Value.Name() == "Unlock" || c.Call.Value.Name() == "RUnlock" {
-	// 			pos := prog.Fset.Position(instr.Pos())
-	// 			fmt.Printf("[mutex lint] %v:%v mutex 没有使用 defer 方式，调用 Unlock/RUnlock\n", pos.Filename, pos.Line)
-	// 			continue
-	// 		}
-	// 	}
-	// }
-}
-
 func printPaht(newPath []*callgraph.Node, looped bool, varCallPos token.Position) string {
 	s := newPath[0].Func.String()
 	for i := 1; i < len(newPath); i++ {
 		s += " --> " + newPath[i].Func.String()
 	}
+	s += fmt.Sprintf(":%v", varCallPos.Line)
 	if looped {
 		s += " [LOOP]"
 	}

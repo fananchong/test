@@ -111,7 +111,6 @@ func (analyzer *VarAnalyzer) CheckVarLock(prog *ssa.Program, caller *callgraph.N
 	for _, block := range caller.Func.Blocks {
 		mInstr := analyzer.findInstrByGlobalVar(block, mymutex)
 		vInstr := analyzer.findInstrByGlobalVar(block, myvar)
-		checkMutex(prog, mInstr)
 		if checkVar(prog, mInstr, vInstr) {
 			find = true
 			break
@@ -124,7 +123,6 @@ func (analyzer *VarAnalyzer) HaveVar(prog *ssa.Program, caller *callgraph.Node, 
 	var find bool
 	for _, block := range caller.Func.Blocks {
 		mInstr := analyzer.findInstrByGlobalVar(block, m)
-		checkMutex(prog, mInstr)
 		if len(mInstr) > 0 {
 			find = true
 			break

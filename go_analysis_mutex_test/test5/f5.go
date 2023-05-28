@@ -1,35 +1,41 @@
-package test4
+package test5
 
 import (
-	"fmt"
 	"sync"
 )
 
-type xxx struct {
+var (
+	m1 sync.RWMutex // a
+	a  []string
+)
+
+func F51() {
+	m1.Lock()
+	defer m1.Unlock()
+	go func(aa []string) {}(a)
+
 }
 
-type A1 struct {
-	sync.RWMutex // xxx
-	xxx
+func F52() {
+	m1.Lock()
+	defer m1.Unlock()
+	go func(aa []string) {
+
+	}(a)
 }
 
-func (a *A1) g1() {
-	a.Lock()
-	defer a.Unlock()
-	fmt.Println(a.xxx)
-}
+func F53() {
+	m1.Lock()
+	defer m1.Unlock()
+	go func() {
+		// a = append(a, "1")
+		// a = make([]string, 0)
 
-func (a *A1) g2() {
-	fmt.Println(a.xxx)
-}
+		func(aa []string) {}(a)
+		// func(aa []string) {
 
-func F5() {
-	a1 := A1{}
-	fmt.Println(a1.xxx)
-	a1.g1()
-	a1.g2()
-}
+		// }(a)
 
-func init() {
-	F5()
+		// fmt.Println(a)
+	}()
 }

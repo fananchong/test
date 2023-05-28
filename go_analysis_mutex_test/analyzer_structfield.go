@@ -98,7 +98,6 @@ func (analyzer *StructFieldAnalyzer) CheckVarLock(prog *ssa.Program, caller *cal
 	for _, block := range caller.Func.Blocks {
 		mInstr := analyzer.findInstrByStructField(block, mymutex)
 		vInstr := analyzer.findInstrByStructField(block, myvar)
-		checkMutex(prog, block.Instrs)
 		if checkVar(prog, mInstr, vInstr) {
 			find = true
 			break
@@ -111,7 +110,6 @@ func (analyzer *StructFieldAnalyzer) HaveVar(prog *ssa.Program, caller *callgrap
 	var find bool
 	for _, block := range caller.Func.Blocks {
 		mInstr := analyzer.findInstrByStructField(block, m)
-		checkMutex(prog, block.Instrs)
 		if len(mInstr) > 0 {
 			find = true
 			break
