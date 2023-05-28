@@ -79,9 +79,9 @@ func (analyzer *StructFieldAnalyzer) FindCaller(edge *callgraph.Edge, seen map[*
 						for k := range analyzer.vars {
 							if k == field {
 								if _, ok := analyzer.callers[k]; !ok {
-									analyzer.callers[k] = make(map[*callgraph.Node]bool)
+									analyzer.callers[k] = make(map[*callgraph.Node]token.Position)
 								}
-								analyzer.callers[k][caller] = true
+								analyzer.callers[k][caller] = caller.Func.Prog.Fset.Position(instr.Pos())
 								break
 							}
 						}
@@ -107,7 +107,7 @@ func (analyzer *StructFieldAnalyzer) CheckVarLock(prog *ssa.Program, caller *cal
 	return find
 }
 
-func (analyzer *StructFieldAnalyzer) CheckHaveMutex(prog *ssa.Program, caller *callgraph.Node, m *types.Var) bool {
+func (analyzer *StructFieldAnalyzer) HaveVar(prog *ssa.Program, caller *callgraph.Node, m *types.Var) bool {
 	var find bool
 	for _, block := range caller.Func.Blocks {
 		mInstr := analyzer.findInstrByStructField(block, m)

@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"go/ast"
+	"go/token"
 	"go/types"
 
 	"golang.org/x/tools/go/analysis"
@@ -14,7 +15,7 @@ type IAnalysis interface {
 	FindVar(pass *analysis.Pass)
 	FindCaller(*callgraph.Edge, map[*callgraph.Node]bool) error
 	CheckVarLock(prog *ssa.Program, caller *callgraph.Node, mymutex, myvar *types.Var) bool
-	CheckHaveMutex(prog *ssa.Program, caller *callgraph.Node, m *types.Var) bool
+	HaveVar(prog *ssa.Program, caller *callgraph.Node, m *types.Var) bool
 }
 
 func (analyzer *BaseAnalyzer) runOne(prog *ssa.Program, pass *analysis.Pass) (interface{}, error) {
@@ -33,19 +34,18 @@ func (analyzer *BaseAnalyzer) step3CutCaller() {
 	for v := range analyzer.callers {
 		m := analyzer.vars[v]
 		callers := analyzer.callers[v]
-
-		for caller := range callers {
+		for caller, pos := range callers {
 			if !analyzer.Derive.CheckVarLock(analyzer.prog, caller, m, v) {
 				if _, ok := analyzer.callers2[v]; !ok {
-					analyzer.callers2[v] = make(map[*callgraph.Node]bool)
+					analyzer.callers2[v] = make(map[*callgraph.Node]token.Position)
 				}
-				analyzer.callers2[v][caller] = true
+				analyzer.callers2[v][caller] = pos
 			}
 		}
 	}
 }
 
-func (analyzer *BaseAnalyzer) step4CheckPath(myvar *types.Var, target *callgraph.Node, paths []*callgraph.Node, seen map[*callgraph.Node]bool, checkFail *string) {
+func (analyzer *BaseAnalyzer) step4CheckPath(myvar *types.Var, varCallPos token.Position, target *callgraph.Node, paths []*callgraph.Node, seen map[*callgraph.Node]bool, checkFail *string) {
 	if seen[target] {
 		return
 	}
@@ -66,28 +66,28 @@ func (analyzer *BaseAnalyzer) step4CheckPath(myvar *types.Var, target *callgraph
 
 	// 检查是否有 mutex
 	mymutex := analyzer.vars[myvar]
-	if analyzer.Derive.CheckHaveMutex(analyzer.prog, target, mymutex) {
+	if analyzer.Derive.HaveVar(analyzer.prog, target, mymutex) {
 		return
 	}
 
 	// 如果超出本包，则报错
 	if target.Func.Pkg.Pkg != myvar.Pkg() {
-		*checkFail = printPaht(newPaths, looped)
+		*checkFail = printPaht(newPaths, looped, varCallPos)
 		return
 	}
 
 	// 如果已经是协程起点，则报错
 	if isGoroutine(target.Func) {
-		*checkFail = printPaht(newPaths, looped)
+		*checkFail = printPaht(newPaths, looped, varCallPos)
 		return
 	}
 
 	if len(target.In) == 0 || looped {
-		*checkFail = printPaht(newPaths, looped)
+		*checkFail = printPaht(newPaths, looped, varCallPos)
 		return
 	} else {
 		for _, in := range target.In {
-			analyzer.step4CheckPath(myvar, in.Caller, newPaths, seen, checkFail)
+			analyzer.step4CheckPath(myvar, varCallPos, in.Caller, newPaths, seen, checkFail)
 		}
 	}
 }
@@ -98,8 +98,8 @@ type BaseAnalyzer struct {
 	cg       *callgraph.Graph
 	prog     *ssa.Program
 	vars     map[*types.Var]*types.Var // key : 变量； value mutex
-	callers  map[*types.Var]map[*callgraph.Node]bool
-	callers2 map[*types.Var]map[*callgraph.Node]bool
+	callers  map[*types.Var]map[*callgraph.Node]token.Position
+	callers2 map[*types.Var]map[*callgraph.Node]token.Position
 	Derive   IAnalysis
 }
 
@@ -109,8 +109,8 @@ func NewBaseAnalyzer(path string, cg *callgraph.Graph, prog *ssa.Program) *BaseA
 		cg:       cg,
 		prog:     prog,
 		vars:     map[*types.Var]*types.Var{},
-		callers:  map[*types.Var]map[*callgraph.Node]bool{},
-		callers2: map[*types.Var]map[*callgraph.Node]bool{},
+		callers:  map[*types.Var]map[*callgraph.Node]token.Position{},
+		callers2: map[*types.Var]map[*callgraph.Node]token.Position{},
 	}
 	analyzer.Analyzer = &analysis.Analyzer{
 		Name: "mutex_check",
@@ -132,13 +132,12 @@ func (analyzer *BaseAnalyzer) Analysis() {
 	// 4. 查看调用关系，逆向检查上级调用是否加锁
 	seen := make(map[string]bool)
 	for v, nodes := range analyzer.callers2 {
-		for node := range nodes {
+		for node, varCallPos := range nodes {
 			var checkFail string
-			analyzer.step4CheckPath(v, node, []*callgraph.Node{}, map[*callgraph.Node]bool{}, &checkFail)
+			analyzer.step4CheckPath(v, varCallPos, node, []*callgraph.Node{}, map[*callgraph.Node]bool{}, &checkFail)
 			if checkFail != "" {
 				if _, ok := seen[checkFail]; !ok {
-					pos := analyzer.prog.Fset.Position(v.Pos())
-					fmt.Printf("[mutex lint] %v:%v 没有调用 mutex lock 。调用链：%v\n", pos.Filename, pos.Line, checkFail)
+					fmt.Printf("[mutex lint] %v:%v 没有调用 mutex lock 。调用链：%v\n", varCallPos.Filename, varCallPos.Line, checkFail)
 				}
 				seen[checkFail] = true
 			}
@@ -206,7 +205,7 @@ func checkMutex(prog *ssa.Program, mInstr []ssa.Instruction) {
 	// }
 }
 
-func printPaht(newPath []*callgraph.Node, looped bool) string {
+func printPaht(newPath []*callgraph.Node, looped bool, varCallPos token.Position) string {
 	s := newPath[0].Func.String()
 	for i := 1; i < len(newPath); i++ {
 		s += " --> " + newPath[i].Func.String()

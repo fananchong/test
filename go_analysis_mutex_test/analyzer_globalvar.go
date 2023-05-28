@@ -96,9 +96,9 @@ func (analyzer *VarAnalyzer) FindCaller(edge *callgraph.Edge, seen map[*callgrap
 			for k := range analyzer.vars {
 				if usesVar(instr, k) {
 					if _, ok := analyzer.callers[k]; !ok {
-						analyzer.callers[k] = make(map[*callgraph.Node]bool)
+						analyzer.callers[k] = make(map[*callgraph.Node]token.Position)
 					}
-					analyzer.callers[k][caller] = true
+					analyzer.callers[k][caller] = caller.Func.Prog.Fset.Position(instr.Pos())
 				}
 			}
 		}
@@ -120,7 +120,7 @@ func (analyzer *VarAnalyzer) CheckVarLock(prog *ssa.Program, caller *callgraph.N
 	return find
 }
 
-func (analyzer *VarAnalyzer) CheckHaveMutex(prog *ssa.Program, caller *callgraph.Node, m *types.Var) bool {
+func (analyzer *VarAnalyzer) HaveVar(prog *ssa.Program, caller *callgraph.Node, m *types.Var) bool {
 	var find bool
 	for _, block := range caller.Func.Blocks {
 		mInstr := analyzer.findInstrByGlobalVar(block, m)
