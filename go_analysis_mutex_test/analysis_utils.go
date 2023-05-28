@@ -231,7 +231,19 @@ func getGlobalVarByName(pass *analysis.Pass, file *ast.File, name string) *ast.V
 
 func getStructFieldByName(fields []*ast.Field, name string) *ast.Field {
 	for _, field := range fields {
-		if field.Names[0].Name == name {
+		var n string
+		if len(field.Names) > 0 {
+			n = field.Names[0].Name
+		} else if v, ok := field.Type.(*ast.SelectorExpr); ok {
+			n = v.Sel.Name
+		} else if v, ok := field.Type.(*ast.StarExpr); ok {
+			n = v.X.(*ast.SelectorExpr).Sel.Name
+		} else if v, ok := field.Type.(*ast.Ident); ok {
+			n = v.Name
+		} else {
+			panic("getStructFieldByName, here")
+		}
+		if n == name {
 			return field
 		}
 	}
