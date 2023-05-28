@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"go/ast"
+	"go/token"
 	"go/types"
 	"strings"
 
@@ -11,13 +12,7 @@ import (
 	"golang.org/x/tools/go/ssa"
 )
 
-func (analyzer *StructFieldAnalyzer) runOne(prog *ssa.Program, pass *analysis.Pass) (interface{}, error) {
-	// 获取含有 mutex 字段的结构体、以及结构体内 mutex 对应的字段 A
-	analyzer.step1FindStructField(pass)
-	return nil, nil
-}
-
-func (analyzer *StructFieldAnalyzer) step1FindStructField(pass *analysis.Pass) {
+func (analyzer *StructFieldAnalyzer) FindVar(pass *analysis.Pass) {
 	for _, file := range pass.Files {
 		ast.Inspect(file, func(node ast.Node) bool {
 			switch t := node.(type) {
@@ -26,7 +21,7 @@ func (analyzer *StructFieldAnalyzer) step1FindStructField(pass *analysis.Pass) {
 					fields := structType.Fields.List
 					for _, field := range fields {
 						if isMutexType(field.Type) {
-							m := getStructFieldByPos(analyzer.prog, pass.Fset.Position(field.Pos()))
+							m := analyzer.getStructFieldByPos(analyzer.prog, pass.Fset.Position(field.Pos()))
 
 							comment := ""
 							if field.Comment != nil {
@@ -44,13 +39,13 @@ func (analyzer *StructFieldAnalyzer) step1FindStructField(pass *analysis.Pass) {
 							mutexFiled := field
 							varNames := strings.Split(comment, ",")
 							for _, name := range varNames {
-								varFiled := getStructFieldByName(fields, name)
+								varFiled := analyzer.getStructFieldByName(fields, name)
 								if varFiled == nil {
 									pos := pass.Fset.Position(mutexFiled.Pos())
 									fmt.Printf("[mutex lint] %v:%v mutex 变量注释中的变量 %v ，未声明\n", pos.Filename, pos.Line, name)
 									break
 								} else {
-									v := getStructFieldByPos(analyzer.prog, pass.Fset.Position(varFiled.Pos()))
+									v := analyzer.getStructFieldByPos(analyzer.prog, pass.Fset.Position(varFiled.Pos()))
 									analyzer.vars[v] = m
 								}
 							}
@@ -63,163 +58,131 @@ func (analyzer *StructFieldAnalyzer) step1FindStructField(pass *analysis.Pass) {
 	}
 }
 
-func (analyzer *StructFieldAnalyzer) step2FindCaller() {
-	seen := make(map[*callgraph.Node]bool)
-	f := func(edge *callgraph.Edge) error {
-		caller := edge.Caller
-		if seen[caller] {
-			return nil
-		}
-		if caller.Func == nil {
-			return nil
-		}
-		seen[caller] = true
-		if caller.Func.Name() == "init" {
-			return nil
-		}
-		for _, block := range caller.Func.Blocks {
-			for _, instr := range block.Instrs {
-				if fieldAddr, ok := instr.(*ssa.FieldAddr); ok && fieldAddr.X != nil {
-					if pointerType, ok := fieldAddr.X.Type().Underlying().(*types.Pointer); ok {
-						if structType, ok := pointerType.Elem().Underlying().(*types.Struct); ok {
-							field := structType.Field(fieldAddr.Field)
-							for k := range analyzer.vars {
-								if k == field {
-									if _, ok := analyzer.callers[k]; !ok {
-										analyzer.callers[k] = make(map[*callgraph.Node]bool)
-									}
-									analyzer.callers[k][caller] = true
-									break
+func (analyzer *StructFieldAnalyzer) FindCaller(edge *callgraph.Edge, seen map[*callgraph.Node]bool) error {
+	caller := edge.Caller
+	if seen[caller] {
+		return nil
+	}
+	if caller.Func == nil {
+		return nil
+	}
+	seen[caller] = true
+	if caller.Func.Name() == "init" {
+		return nil
+	}
+	for _, block := range caller.Func.Blocks {
+		for _, instr := range block.Instrs {
+			if fieldAddr, ok := instr.(*ssa.FieldAddr); ok && fieldAddr.X != nil {
+				if pointerType, ok := fieldAddr.X.Type().Underlying().(*types.Pointer); ok {
+					if structType, ok := pointerType.Elem().Underlying().(*types.Struct); ok {
+						field := structType.Field(fieldAddr.Field)
+						for k := range analyzer.vars {
+							if k == field {
+								if _, ok := analyzer.callers[k]; !ok {
+									analyzer.callers[k] = make(map[*callgraph.Node]bool)
 								}
+								analyzer.callers[k][caller] = true
+								break
 							}
 						}
 					}
 				}
 			}
 		}
-		return nil
 	}
-	if err := callgraph.GraphVisitEdges(analyzer.cg, f); err != nil {
-		panic(err)
-	}
+	return nil
 }
 
-func (analyzer *StructFieldAnalyzer) step3CutCaller() {
-	for v := range analyzer.callers {
-		m := analyzer.vars[v]
-		callers := analyzer.callers[v]
-
-		for caller := range callers {
-			if !checkStructFieldHaveMutex(analyzer.prog, caller, m, v) {
-				if _, ok := analyzer.callers2[v]; !ok {
-					analyzer.callers2[v] = make(map[*callgraph.Node]bool)
-				}
-				analyzer.callers2[v][caller] = true
-			}
-		}
-	}
-}
-
-func (analyzer *StructFieldAnalyzer) step4CheckPath(myvar *types.Var, target *callgraph.Node, paths []*callgraph.Node, seen map[*callgraph.Node]bool, checkFail *string) {
-	if seen[target] {
-		return
-	}
-	seen[target] = true
-
-	if *checkFail != "" {
-		return
-	}
-
-	newPaths := append([]*callgraph.Node{target}, paths...)
-	var looped bool
-	for _, v := range paths {
-		if v.Func == target.Func {
-			looped = true
+func (analyzer *StructFieldAnalyzer) CheckVarLock(prog *ssa.Program, caller *callgraph.Node, mymutex, myvar *types.Var) bool {
+	var find bool
+	for _, block := range caller.Func.Blocks {
+		mInstr := analyzer.findInstrByStructField(block, mymutex)
+		vInstr := analyzer.findInstrByStructField(block, myvar)
+		checkMutex(prog, block.Instrs)
+		if checkVar(prog, mInstr, vInstr) {
+			find = true
 			break
 		}
 	}
+	return find
+}
 
-	// 检查是否有 mutex
-	mymutex := analyzer.vars[myvar]
-	if checkStructFieldHaveMutex2(analyzer.prog, target, mymutex) {
-		return
-	}
-
-	// 如果超出本包，则报错
-	if target.Func.Pkg.Pkg != myvar.Pkg() {
-		*checkFail = printPaht(newPaths, looped)
-		return
-	}
-
-	// 如果已经是协程起点，则报错
-	if isGoroutine(target.Func) {
-		*checkFail = printPaht(newPaths, looped)
-		return
-	}
-
-	if len(target.In) == 0 || looped {
-		*checkFail = printPaht(newPaths, looped)
-		return
-	} else {
-		for _, in := range target.In {
-			analyzer.step4CheckPath(myvar, in.Caller, newPaths, seen, checkFail)
+func (analyzer *StructFieldAnalyzer) CheckHaveMutex(prog *ssa.Program, caller *callgraph.Node, m *types.Var) bool {
+	var find bool
+	for _, block := range caller.Func.Blocks {
+		mInstr := analyzer.findInstrByStructField(block, m)
+		checkMutex(prog, block.Instrs)
+		if len(mInstr) > 0 {
+			find = true
+			break
 		}
 	}
+	return find
+}
+
+func (analyzer *StructFieldAnalyzer) getStructFieldByPos(prog *ssa.Program, pos token.Position) *types.Var {
+	for _, pkg := range prog.AllPackages() {
+		for _, member := range pkg.Members {
+			if obj, ok := member.(*ssa.Type); ok {
+				if s, ok := obj.Type().Underlying().(*types.Struct); ok {
+					for i := 0; i < s.NumFields(); i++ {
+						field := s.Field(i)
+						p := prog.Fset.Position(field.Pos())
+						if p == pos {
+							return field
+						}
+					}
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func (analyzer *StructFieldAnalyzer) findInstrByStructField(block *ssa.BasicBlock, v *types.Var) (instrs []ssa.Instruction) {
+	for _, instr := range block.Instrs {
+		if fieldAddr, ok := instr.(*ssa.FieldAddr); ok && fieldAddr.X != nil {
+			if pointerType, ok := fieldAddr.X.Type().Underlying().(*types.Pointer); ok {
+				if structType, ok := pointerType.Elem().Underlying().(*types.Struct); ok {
+					field := structType.Field(fieldAddr.Field)
+					if field == v {
+						instrs = append(instrs, instr)
+					}
+				}
+			}
+		}
+	}
+	return
+}
+
+func (analyzer *StructFieldAnalyzer) getStructFieldByName(fields []*ast.Field, name string) *ast.Field {
+	for _, field := range fields {
+		var n string
+		if len(field.Names) > 0 {
+			n = field.Names[0].Name
+		} else if v, ok := field.Type.(*ast.SelectorExpr); ok {
+			n = v.Sel.Name
+		} else if v, ok := field.Type.(*ast.StarExpr); ok {
+			n = v.X.(*ast.SelectorExpr).Sel.Name
+		} else if v, ok := field.Type.(*ast.Ident); ok {
+			n = v.Name
+		} else {
+			panic("getStructFieldByName, here")
+		}
+		if n == name {
+			return field
+		}
+	}
+	return nil
 }
 
 type StructFieldAnalyzer struct {
-	*analysis.Analyzer
-	path     string
-	cg       *callgraph.Graph
-	prog     *ssa.Program
-	vars     map[*types.Var]*types.Var // key : 变量； value mutex
-	callers  map[*types.Var]map[*callgraph.Node]bool
-	callers2 map[*types.Var]map[*callgraph.Node]bool
+	*BaseAnalyzer
 }
 
 func NewStructFieldAnalyzer(path string, cg *callgraph.Graph, prog *ssa.Program) *StructFieldAnalyzer {
-	analyzer := &StructFieldAnalyzer{
-		path:     path,
-		cg:       cg,
-		prog:     prog,
-		vars:     map[*types.Var]*types.Var{},
-		callers:  map[*types.Var]map[*callgraph.Node]bool{},
-		callers2: map[*types.Var]map[*callgraph.Node]bool{},
-	}
-	analyzer.Analyzer = &analysis.Analyzer{
-		Name: "struct field",
-		Doc:  "prints struct field",
-		Run:  func(p *analysis.Pass) (interface{}, error) { return analyzer.runOne(prog, p) },
-	}
+	analyzer := &StructFieldAnalyzer{}
+	analyzer.BaseAnalyzer = NewBaseAnalyzer(path, cg, prog)
+	analyzer.Derive = analyzer
 	return analyzer
-}
-
-func (analyzer *StructFieldAnalyzer) Analysis() {
-	err := Analysis(analyzer.path, analyzer.Analyzer)
-	if err != nil {
-		panic(err)
-	}
-	// 2. 获取哪些函数 B ，直接使用了相关字段
-	analyzer.step2FindCaller()
-	// 3. 剔除 B 中有加锁的函数，得 C
-	analyzer.step3CutCaller()
-	// 4. 查看调用关系，逆向检查上级调用是否加锁
-	seen := make(map[string]bool)
-	for v, nodes := range analyzer.callers2 {
-		for node := range nodes {
-			var checkFail string
-			analyzer.step4CheckPath(v, node, []*callgraph.Node{}, map[*callgraph.Node]bool{}, &checkFail)
-			if checkFail != "" {
-				if _, ok := seen[checkFail]; !ok {
-					pos := analyzer.prog.Fset.Position(v.Pos())
-					fmt.Printf("[mutex lint] %v:%v 没有调用 mutex lock 。调用链：%v\n", pos.Filename, pos.Line, checkFail)
-				}
-				seen[checkFail] = true
-			}
-			checkFail = ""
-		}
-	}
-}
-
-func (analyzer *StructFieldAnalyzer) Print() {
 }
