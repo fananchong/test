@@ -1,11 +1,11 @@
 package main
 
 import (
-	"fmt"
 	"go/ast"
 	"go/token"
 	"go/types"
 
+	"golang.org/x/tools/go/analysis"
 	"golang.org/x/tools/go/callgraph"
 	"golang.org/x/tools/go/ssa"
 )
@@ -145,15 +145,15 @@ func checkMutex(prog *ssa.Program, mInstr []ssa.Instruction) {
 	if mInstr == nil {
 		return
 	}
-	for _, instr := range mInstr {
-		if c, ok := instr.(*ssa.Call); ok {
-			if c.Call.Value.Name() == "Unlock" || c.Call.Value.Name() == "RUnlock" {
-				pos := prog.Fset.Position(instr.Pos())
-				fmt.Printf("[mutex lint] %v:%v mutex 没有使用 defer 方式，调用 Unlock/RUnlock\n", pos.Filename, pos.Line)
-				continue
-			}
-		}
-	}
+	// for _, instr := range mInstr {
+	// 	if c, ok := instr.(*ssa.Call); ok {
+	// 		if c.Call.Value.Name() == "Unlock" || c.Call.Value.Name() == "RUnlock" {
+	// 			pos := prog.Fset.Position(instr.Pos())
+	// 			fmt.Printf("[mutex lint] %v:%v mutex 没有使用 defer 方式，调用 Unlock/RUnlock\n", pos.Filename, pos.Line)
+	// 			continue
+	// 		}
+	// 	}
+	// }
 }
 
 func findInstrByGlobalVar(block *ssa.BasicBlock, v *types.Var) (instrs []ssa.Instruction) {
@@ -203,4 +203,28 @@ func isGoroutine(fn *ssa.Function) bool {
 		}
 	}
 	return false
+}
+
+func getGlobalVarByName(pass *analysis.Pass, file *ast.File, name string) *ast.ValueSpec {
+	for _, decl := range file.Decls {
+		genDecl, ok := decl.(*ast.GenDecl)
+		if !ok || genDecl.Tok != token.VAR {
+			continue
+		}
+		for _, spec := range genDecl.Specs {
+			if valueSpec, ok := spec.(*ast.ValueSpec); ok {
+				ident := valueSpec.Names[0]
+				obj := pass.TypesInfo.Defs[ident]
+				if obj == nil {
+					continue
+				}
+				v, _ := obj.(*types.Var)
+				isGlobal := !v.IsField() && !v.Embedded() && v.Parent() == pass.Pkg.Scope() // 全局变量
+				if isGlobal && ident.Name == name {
+					return valueSpec
+				}
+			}
+		}
+	}
+	return nil
 }

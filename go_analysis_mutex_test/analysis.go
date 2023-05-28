@@ -14,7 +14,7 @@ func Analysis(path string, analyzer *analysis.Analyzer) error {
 		return err
 	}
 	packages, err := packages.Load(&packages.Config{
-		Mode: packages.LoadAllSyntax,
+		Mode: packages.LoadAllSyntax, // nolint:staticcheck
 	}, path+"/...")
 	if err != nil {
 		return err

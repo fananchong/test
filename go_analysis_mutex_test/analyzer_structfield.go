@@ -38,6 +38,9 @@ func (analyzer *StructFieldAnalyzer) step1FindStructField(pass *analysis.Pass) {
 								fmt.Printf("[mutex lint] %v:%v mutex 变量没有注释，指明它要锁的变量\n", pos.Filename, pos.Line)
 								continue
 							}
+							if strings.Contains(comment, "nolint") {
+								continue
+							}
 							varNames := strings.Split(comment, ",")
 							if i+1+len(varNames) > len(fields) {
 								pos := pass.Fset.Position(field.Pos())
@@ -100,9 +103,8 @@ func (analyzer *StructFieldAnalyzer) step2FindCaller() {
 		return nil
 	}
 	if err := callgraph.GraphVisitEdges(analyzer.cg, f); err != nil {
-		return
+		panic(err)
 	}
-	return
 }
 
 func (analyzer *StructFieldAnalyzer) step3CutCaller() {

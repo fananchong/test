@@ -20,7 +20,7 @@ func (analyzer *VarAnalyzer) runOne(prog *ssa.Program, pass *analysis.Pass) (int
 
 func (analyzer *VarAnalyzer) step1FindGlobalVar(pass *analysis.Pass) {
 	for _, file := range pass.Files {
-		for i, decl := range file.Decls {
+		for _, decl := range file.Decls {
 			genDecl, ok := decl.(*ast.GenDecl)
 			if !ok || genDecl.Tok != token.VAR {
 				continue
@@ -57,24 +57,18 @@ func (analyzer *VarAnalyzer) step1FindGlobalVar(pass *analysis.Pass) {
 				fmt.Printf("[mutex lint] %v:%v mutex 变量没有注释，指明它要锁的变量\n", pos.Filename, pos.Line)
 				continue
 			}
-			varNames := strings.Split(comment, ",")
-			if i+1+len(varNames) > len(file.Decls) {
-				fmt.Printf("[mutex lint] %v:%v mutex 变量注释有误，它要锁的变量未声明\n", pos.Filename, pos.Line)
+			if strings.Contains(comment, "nolint") {
 				continue
 			}
-			for j := 1; j <= len(varNames); j++ {
-				genDecl, ok := file.Decls[i+j].(*ast.GenDecl)
-				if !ok || genDecl.Tok != token.VAR {
-					fmt.Printf("[mutex lint] %v:%v mutex 变量注释中的变量 %v ，声明不对\n", pos.Filename, pos.Line+j, varNames[j-1])
-					break
-				}
-				spec := genDecl.Specs[0]
-				if valueSpec, ok := spec.(*ast.ValueSpec); !ok || valueSpec.Names[0].Name != varNames[j-1] {
-					pos := pass.Fset.Position(spec.Pos())
-					fmt.Printf("[mutex lint] %v:%v mutex 变量注释中的变量 %v ，声明不对\n", pos.Filename, pos.Line, varNames[j-1])
+			varNames := strings.Split(comment, ",")
+			for _, name := range varNames {
+				valueSpec := getGlobalVarByName(pass, file, name)
+				if valueSpec == nil {
+					pos := pass.Fset.Position(mutexValueSpec.Pos())
+					fmt.Printf("[mutex lint] %v:%v mutex 变量注释中的变量 %v ，未声明\n", pos.Filename, pos.Line, name)
 					break
 				} else {
-					pos := pass.Fset.Position(spec.Pos())
+					pos := pass.Fset.Position(valueSpec.Pos())
 					v := getGlobalVarByPos(analyzer.prog, pos)
 					analyzer.vars[v] = mutexVar
 				}
@@ -120,9 +114,8 @@ func (analyzer *VarAnalyzer) step2FindCaller() {
 		return nil
 	}
 	if err := callgraph.GraphVisitEdges(analyzer.cg, f); err != nil {
-		return
+		panic(err)
 	}
-	return
 }
 
 func (analyzer *VarAnalyzer) step3CutCaller() {
