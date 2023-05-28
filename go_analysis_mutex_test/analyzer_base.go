@@ -65,9 +65,9 @@ func (analyzer *BaseAnalyzer) step4CheckPath(myvar *types.Var, varCallPos token.
 		}
 	}
 
-	// 检查是否有 mutex
+	// 检查是否有 mutex (上层函数)
 	mymutex := analyzer.vars[myvar]
-	if analyzer.Derive.HaveVar(analyzer.prog, target, mymutex) {
+	if len(newPaths) > 1 && analyzer.Derive.HaveVar(analyzer.prog, target, mymutex) {
 		return
 	}
 
@@ -197,10 +197,29 @@ func checkVar(prog *ssa.Program, mInstr, vInstr []ssa.Instruction) bool {
 		return false
 	}
 	if mInstr != nil && vInstr != nil {
-		mPos := prog.Fset.Position(mInstr[0].Pos())
+		// 如果有 defer unlock ，则返回 true
+		for _, instr := range mInstr {
+			if d, ok := instr.(*ssa.Defer); ok && (d.Call.Value.Name() == "Unlock" || d.Call.Value.Name() == "RUnlock") {
+				return true
+			}
+		}
+		// 否则，查看是否变量在  lock unlock 中间
 		vPos := prog.Fset.Position(vInstr[0].Pos())
-		if mPos.Line < vPos.Line {
-			return true
+		for i := 0; i < len(mInstr); i++ {
+			c := mInstr[i].(*ssa.Call).Call.Value.Name()
+			if c == "Unlock" || c == "RUnlock" {
+				continue
+			}
+			mPos1 := prog.Fset.Position(mInstr[i].Pos())
+			if vPos.Line > mPos1.Line {
+				if i == len(mInstr)-1 {
+					return true
+				}
+				mPos2 := prog.Fset.Position(mInstr[i+1].Pos())
+				if vPos.Line < mPos2.Line {
+					return true
+				}
+			}
 		}
 	}
 	return false
