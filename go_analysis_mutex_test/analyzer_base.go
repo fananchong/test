@@ -139,7 +139,7 @@ func (analyzer *BaseAnalyzer) Analysis() {
 	var keys sort.StringSlice
 	m := map[string]*types.Var{}
 	for v := range analyzer.callers2 {
-		n := fmt.Sprintf("%v___%v", v.Pkg().Path(), v.Name())
+		n := fmt.Sprintf("%v_%v", v.Pkg().Path(), v.Name())
 		keys = append(keys, n)
 		m[n] = v
 	}
@@ -153,7 +153,12 @@ func (analyzer *BaseAnalyzer) Analysis() {
 			if checkFail != "" {
 				if _, ok := seen[checkFail]; !ok {
 					for _, pos := range varCallPos {
-						s := fmt.Sprintf("[mutex lint] %v:%v 没有调用 mutex lock 。", pos.Filename, pos.Line)
+						var s string
+						if pos.Filename != "" && pos.Line != 0 {
+							s = fmt.Sprintf("[mutex lint] %v:%v 没有调用 mutex lock 。", pos.Filename, pos.Line)
+						} else {
+							// s = fmt.Sprintf("[mutex lint] %v:%v 没有调用 mutex lock 。调用链：%v", pos.Filename, pos.Line, checkFail)
+						}
 						analyzer.Prints = append(analyzer.Prints, s)
 					}
 				}
