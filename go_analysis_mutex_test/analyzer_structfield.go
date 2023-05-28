@@ -161,11 +161,17 @@ func (analyzer *StructFieldAnalyzer) getStructFieldByName(fields []*ast.Field, n
 		} else if v, ok := field.Type.(*ast.SelectorExpr); ok {
 			n = v.Sel.Name
 		} else if v, ok := field.Type.(*ast.StarExpr); ok {
-			n = v.X.(*ast.SelectorExpr).Sel.Name
+			if v2, ok := v.X.(*ast.Ident); ok {
+				n = v2.Name
+			} else if v2, ok := v.X.(*ast.SelectorExpr); ok {
+				n = v2.Sel.Name
+			} else {
+				panic("getStructFieldByName, here #1")
+			}
 		} else if v, ok := field.Type.(*ast.Ident); ok {
 			n = v.Name
 		} else {
-			panic("getStructFieldByName, here")
+			panic("getStructFieldByName, here #2")
 		}
 		if n == name {
 			return field
