@@ -7,16 +7,45 @@ import (
 
 var (
 	m1 sync.RWMutex // a
-	a  []string
+	a  map[int32]interface{}
 )
 
-func F3() {
-	m1.Lock()
-	defer m1.Unlock()
-	a = make([]string, 0)
-	// fmt.Println(a)
+var flag bool
 
-	fmt.Println("aaa")
+var f = func(func()) {}
+
+func F3() {
+
+	if flag {
+
+		f(func() {
+			m1.RLock()
+			defer m1.RUnlock()
+
+			if !flag {
+				for k, v := range a {
+					fmt.Println(k, v)
+				}
+			}
+		})
+
+	}
+
+	fmt.Println(a)
+
+	if flag {
+
+		m1.RLock()
+
+		if !flag {
+			for k, v := range a {
+				fmt.Println(k, v)
+			}
+		}
+		m1.RUnlock()
+	}
+
+	fmt.Println(a)
 }
 
 func F32() {

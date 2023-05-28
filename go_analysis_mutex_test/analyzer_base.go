@@ -15,7 +15,7 @@ import (
 type IAnalysis interface {
 	FindVar(pass *analysis.Pass)
 	FindCaller(*callgraph.Edge, map[*callgraph.Node]bool) error
-	CheckVarLock(prog *ssa.Program, caller *callgraph.Node, mymutex, myvar *types.Var) bool
+	CheckVarLock(prog *ssa.Program, caller *callgraph.Node, mymutex, myvar *types.Var) []token.Position
 	HaveVar(prog *ssa.Program, caller *callgraph.Node, m *types.Var) bool
 }
 
@@ -35,18 +35,19 @@ func (analyzer *BaseAnalyzer) step3CutCaller() {
 	for v := range analyzer.callers {
 		m := analyzer.vars[v]
 		callers := analyzer.callers[v]
-		for caller, pos := range callers {
-			if !analyzer.Derive.CheckVarLock(analyzer.prog, caller, m, v) {
+		for caller := range callers {
+			poss := analyzer.Derive.CheckVarLock(analyzer.prog, caller, m, v)
+			if len(poss) != 0 {
 				if _, ok := analyzer.callers2[v]; !ok {
-					analyzer.callers2[v] = make(map[*callgraph.Node]token.Position)
+					analyzer.callers2[v] = make(map[*callgraph.Node][]token.Position)
 				}
-				analyzer.callers2[v][caller] = pos
+				analyzer.callers2[v][caller] = poss
 			}
 		}
 	}
 }
 
-func (analyzer *BaseAnalyzer) step4CheckPath(myvar *types.Var, varCallPos token.Position, target *callgraph.Node, paths []*callgraph.Node, seen map[*callgraph.Node]bool, checkFail *string) {
+func (analyzer *BaseAnalyzer) step4CheckPath(myvar *types.Var, target *callgraph.Node, paths []*callgraph.Node, seen map[*callgraph.Node]bool, checkFail *string) {
 	if seen[target] {
 		return
 	}
@@ -73,23 +74,23 @@ func (analyzer *BaseAnalyzer) step4CheckPath(myvar *types.Var, varCallPos token.
 
 	// 如果超出本包，则报错
 	if target.Func.Pkg.Pkg != myvar.Pkg() {
-		*checkFail = printPaht(newPaths, looped, varCallPos)
+		*checkFail = printPaht(newPaths, looped)
 		return
 	}
 
 	// 如果已经是协程起点，则报错
 	if isGoroutine(target.Func) {
-		*checkFail = printPaht(newPaths, looped, varCallPos)
+		*checkFail = printPaht(newPaths, looped)
 		return
 	}
 
 	if len(target.In) == 0 || looped {
-		*checkFail = printPaht(newPaths, looped, varCallPos)
+		*checkFail = printPaht(newPaths, looped)
 		return
 	} else {
 		for _, in := range target.In {
 			*checkFail = ""
-			analyzer.step4CheckPath(myvar, varCallPos, in.Caller, newPaths, seen, checkFail)
+			analyzer.step4CheckPath(myvar, in.Caller, newPaths, seen, checkFail)
 		}
 	}
 }
@@ -100,8 +101,9 @@ type BaseAnalyzer struct {
 	cg       *callgraph.Graph
 	prog     *ssa.Program
 	vars     map[*types.Var]*types.Var // key : 变量； value mutex
-	callers  map[*types.Var]map[*callgraph.Node]token.Position
-	callers2 map[*types.Var]map[*callgraph.Node]token.Position
+	callers  map[*types.Var]map[*callgraph.Node][]token.Position
+	callers2 map[*types.Var]map[*callgraph.Node][]token.Position
+	Prints   sort.StringSlice
 	Derive   IAnalysis
 }
 
@@ -111,8 +113,8 @@ func NewBaseAnalyzer(path string, cg *callgraph.Graph, prog *ssa.Program) *BaseA
 		cg:       cg,
 		prog:     prog,
 		vars:     map[*types.Var]*types.Var{},
-		callers:  map[*types.Var]map[*callgraph.Node]token.Position{},
-		callers2: map[*types.Var]map[*callgraph.Node]token.Position{},
+		callers:  map[*types.Var]map[*callgraph.Node][]token.Position{},
+		callers2: map[*types.Var]map[*callgraph.Node][]token.Position{},
 	}
 	analyzer.Analyzer = &analysis.Analyzer{
 		Name: "mutex_check",
@@ -137,8 +139,9 @@ func (analyzer *BaseAnalyzer) Analysis() {
 	var keys sort.StringSlice
 	m := map[string]*types.Var{}
 	for v := range analyzer.callers2 {
-		keys = append(keys, v.Name())
-		m[v.Name()] = v
+		n := fmt.Sprintf("%v___%v", v.Pkg().Path(), v.Name())
+		keys = append(keys, n)
+		m[n] = v
 	}
 	sort.Sort(keys)
 	for _, key := range keys {
@@ -146,13 +149,12 @@ func (analyzer *BaseAnalyzer) Analysis() {
 		nodes := analyzer.callers2[v]
 		for node, varCallPos := range nodes {
 			var checkFail string
-			analyzer.step4CheckPath(v, varCallPos, node, []*callgraph.Node{}, map[*callgraph.Node]bool{}, &checkFail)
+			analyzer.step4CheckPath(v, node, []*callgraph.Node{}, map[*callgraph.Node]bool{}, &checkFail)
 			if checkFail != "" {
 				if _, ok := seen[checkFail]; !ok {
-					if varCallPos.Filename == "" {
-						fmt.Printf("[mutex lint] %v:%v 没有调用 mutex lock 。调用链：%v\n", varCallPos.Filename, varCallPos.Line, checkFail)
-					} else {
-						fmt.Printf("[mutex lint] %v:%v 没有调用 mutex lock 。\n", varCallPos.Filename, varCallPos.Line)
+					for _, pos := range varCallPos {
+						s := fmt.Sprintf("[mutex lint] %v:%v 没有调用 mutex lock 。", pos.Filename, pos.Line)
+						analyzer.Prints = append(analyzer.Prints, s)
 					}
 				}
 				seen[checkFail] = true
@@ -192,32 +194,54 @@ func isMutexType(expr ast.Expr) bool {
 	return isSyncMutexType(expr) || isSyncRWMutexType(expr)
 }
 
-func checkVar(prog *ssa.Program, mInstr, vInstr []ssa.Instruction) bool {
-	if mInstr == nil && vInstr == nil {
+func checkVar(prog *ssa.Program, mInstrs []ssa.Instruction, vInstr ssa.Instruction) bool {
+	if mInstrs == nil {
 		return false
 	}
-	if mInstr != nil && vInstr != nil {
-		// 如果有 defer unlock ，则返回 true
-		for _, instr := range mInstr {
+	if mInstrs != nil {
+		// 如果有 defer unlock ，只要看有 Lock 在前面
+		var hasDefer bool
+		for _, instr := range mInstrs {
 			if d, ok := instr.(*ssa.Defer); ok && (d.Call.Value.Name() == "Unlock" || d.Call.Value.Name() == "RUnlock") {
-				return true
+				hasDefer = true
+				break
 			}
 		}
-		// 否则，查看是否变量在  lock unlock 中间
-		vPos := prog.Fset.Position(vInstr[0].Pos())
-		for i := 0; i < len(mInstr); i++ {
-			c := mInstr[i].(*ssa.Call).Call.Value.Name()
-			if c == "Unlock" || c == "RUnlock" {
-				continue
-			}
-			mPos1 := prog.Fset.Position(mInstr[i].Pos())
-			if vPos.Line > mPos1.Line {
-				if i == len(mInstr)-1 {
-					return true
+		vPos := prog.Fset.Position(vInstr.Pos())
+		if hasDefer {
+			for i := 0; i < len(mInstrs); i++ {
+				switch c := mInstrs[i].(type) {
+				case *ssa.Defer:
+					continue
+				case *ssa.Call:
+					n := c.Call.Value.Name()
+					if n == "Unlock" || n == "RUnlock" {
+						continue
+					}
+					mPos1 := prog.Fset.Position(mInstrs[i].Pos())
+					if vPos.Line > mPos1.Line {
+						return true
+					}
 				}
-				mPos2 := prog.Fset.Position(mInstr[i+1].Pos())
-				if vPos.Line < mPos2.Line {
-					return true
+			}
+		} else {
+			// 否则，查看是否变量在  lock unlock 中间
+			for i := 0; i < len(mInstrs); i++ {
+				if c, ok := mInstrs[i].(*ssa.Call); ok {
+					n := c.Call.Value.Name()
+					if n == "Unlock" || n == "RUnlock" {
+						continue
+					}
+					mPos1 := prog.Fset.Position(mInstrs[i].Pos())
+					if vPos.Line > mPos1.Line {
+						if i == len(mInstrs)-1 {
+							return true
+						}
+						mPos2 := prog.Fset.Position(mInstrs[i+1].Pos())
+						if vPos.Line < mPos2.Line {
+							return true
+						}
+					}
 				}
 			}
 		}
@@ -225,12 +249,11 @@ func checkVar(prog *ssa.Program, mInstr, vInstr []ssa.Instruction) bool {
 	return false
 }
 
-func printPaht(newPath []*callgraph.Node, looped bool, varCallPos token.Position) string {
+func printPaht(newPath []*callgraph.Node, looped bool) string {
 	s := newPath[0].Func.String()
 	for i := 1; i < len(newPath); i++ {
 		s += " --> " + newPath[i].Func.String()
 	}
-	s += fmt.Sprintf(":%v", varCallPos.Line)
 	if looped {
 		s += " [LOOP]"
 	}

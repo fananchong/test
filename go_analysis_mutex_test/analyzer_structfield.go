@@ -82,9 +82,9 @@ func (analyzer *StructFieldAnalyzer) FindCaller(edge *callgraph.Edge, seen map[*
 						for k := range analyzer.vars {
 							if k == field {
 								if _, ok := analyzer.callers[k]; !ok {
-									analyzer.callers[k] = make(map[*callgraph.Node]token.Position)
+									analyzer.callers[k] = make(map[*callgraph.Node][]token.Position)
 								}
-								analyzer.callers[k][caller] = caller.Func.Prog.Fset.Position(instr.Pos())
+								analyzer.callers[k][caller] = []token.Position{}
 								break
 							}
 						}
@@ -96,17 +96,19 @@ func (analyzer *StructFieldAnalyzer) FindCaller(edge *callgraph.Edge, seen map[*
 	return nil
 }
 
-func (analyzer *StructFieldAnalyzer) CheckVarLock(prog *ssa.Program, caller *callgraph.Node, mymutex, myvar *types.Var) bool {
-	var find bool
+func (analyzer *StructFieldAnalyzer) CheckVarLock(prog *ssa.Program, caller *callgraph.Node, mymutex, myvar *types.Var) (poss []token.Position) {
+	var mInstrs []ssa.Instruction
+	var vInstrs []ssa.Instruction
 	for _, block := range caller.Func.Blocks {
-		mInstr := analyzer.findInstrByStructField(block, mymutex)
-		vInstr := analyzer.findInstrByStructField(block, myvar)
-		if checkVar(prog, mInstr, vInstr) {
-			find = true
-			break
+		mInstrs = append(mInstrs, analyzer.findInstrByStructFieldCall(block, mymutex)...)
+		vInstrs = append(vInstrs, analyzer.findInstrByStructField(block, myvar)...)
+	}
+	for _, vInstr := range vInstrs {
+		if !checkVar(prog, mInstrs, vInstr) {
+			poss = append(poss, caller.Func.Prog.Fset.Position(vInstr.Pos()))
 		}
 	}
-	return find
+	return
 }
 
 func (analyzer *StructFieldAnalyzer) HaveVar(prog *ssa.Program, caller *callgraph.Node, m *types.Var) bool {
@@ -148,6 +150,27 @@ func (analyzer *StructFieldAnalyzer) findInstrByStructField(block *ssa.BasicBloc
 					field := structType.Field(fieldAddr.Field)
 					if field == v {
 						instrs = append(instrs, instr)
+					}
+				}
+			}
+		}
+	}
+	return
+}
+
+func (analyzer *StructFieldAnalyzer) findInstrByStructFieldCall(block *ssa.BasicBlock, v *types.Var) (instrs []ssa.Instruction) {
+	for _, instr := range block.Instrs {
+		if c, ok := instr.(*ssa.Call); ok {
+			if c.Call.Signature().Recv() != nil {
+				arg := c.Call.Args[0]
+				if fieldAddr, ok := arg.(*ssa.FieldAddr); ok && fieldAddr.X != nil {
+					if pointerType, ok := fieldAddr.X.Type().Underlying().(*types.Pointer); ok {
+						if structType, ok := pointerType.Elem().Underlying().(*types.Struct); ok {
+							field := structType.Field(fieldAddr.Field)
+							if field == v {
+								instrs = append(instrs, instr)
+							}
+						}
 					}
 				}
 			}

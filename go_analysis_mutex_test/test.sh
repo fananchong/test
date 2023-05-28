@@ -6,4 +6,4 @@ TOOLS_DIR=${PWD}
 
 go build
 
-${TOOLS_DIR}/go_analysis_mutex_test --path=${PWD}/test3
+${TOOLS_DIR}/go_analysis_mutex_test --path=${PWD}

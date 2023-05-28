@@ -30,7 +30,3 @@ func F4() {
 	a1.g1()
 	a1.g2()
 }
-
-func init() {
-	F4()
-}

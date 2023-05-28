@@ -96,9 +96,9 @@ func (analyzer *VarAnalyzer) FindCaller(edge *callgraph.Edge, seen map[*callgrap
 			for k := range analyzer.vars {
 				if usesVar(instr, k) {
 					if _, ok := analyzer.callers[k]; !ok {
-						analyzer.callers[k] = make(map[*callgraph.Node]token.Position)
+						analyzer.callers[k] = make(map[*callgraph.Node][]token.Position)
 					}
-					analyzer.callers[k][caller] = caller.Func.Prog.Fset.Position(instr.Pos())
+					analyzer.callers[k][caller] = []token.Position{}
 				}
 			}
 		}
@@ -106,17 +106,19 @@ func (analyzer *VarAnalyzer) FindCaller(edge *callgraph.Edge, seen map[*callgrap
 	return nil
 }
 
-func (analyzer *VarAnalyzer) CheckVarLock(prog *ssa.Program, caller *callgraph.Node, mymutex, myvar *types.Var) bool {
-	var find bool
+func (analyzer *VarAnalyzer) CheckVarLock(prog *ssa.Program, caller *callgraph.Node, mymutex, myvar *types.Var) (poss []token.Position) {
+	var mInstrs []ssa.Instruction
+	var vInstrs []ssa.Instruction
 	for _, block := range caller.Func.Blocks {
-		mInstr := analyzer.findInstrByGlobalVar(block, mymutex)
-		vInstr := analyzer.findInstrByGlobalVar(block, myvar)
-		if checkVar(prog, mInstr, vInstr) {
-			find = true
-			break
+		mInstrs = append(mInstrs, analyzer.findInstrByGlobalVar(block, mymutex)...)
+		vInstrs = append(vInstrs, analyzer.findInstrByGlobalVar(block, myvar)...)
+	}
+	for _, vInstr := range vInstrs {
+		if !checkVar(prog, mInstrs, vInstr) {
+			poss = append(poss, caller.Func.Prog.Fset.Position(vInstr.Pos()))
 		}
 	}
-	return find
+	return
 }
 
 func (analyzer *VarAnalyzer) HaveVar(prog *ssa.Program, caller *callgraph.Node, m *types.Var) bool {
