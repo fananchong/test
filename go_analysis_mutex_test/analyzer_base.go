@@ -159,7 +159,9 @@ func (analyzer *BaseAnalyzer) Analysis() {
 						} else {
 							// s = fmt.Sprintf("[mutex lint] %v:%v 没有调用 mutex lock 。调用链：%v", pos.Filename, pos.Line, checkFail)
 						}
-						analyzer.Prints = append(analyzer.Prints, s)
+						if s != "" {
+							analyzer.Prints = append(analyzer.Prints, s)
+						}
 					}
 				}
 				seen[checkFail] = true
