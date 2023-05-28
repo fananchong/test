@@ -18,9 +18,7 @@ func main() {
 
 	analyzer1 := NewVarAnalyzer(path, cg, prog)
 	analyzer1.Analysis()
-	analyzer1.Print()
 
 	analyzer2 := NewStructFieldAnalyzer(path, cg, prog)
 	analyzer2.Analysis()
-	analyzer2.Print()
 }

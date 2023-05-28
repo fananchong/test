@@ -218,15 +218,19 @@ func (analyzer *VarAnalyzer) Analysis() {
 	// 3. 剔除 B 中有加锁的函数，得 C
 	analyzer.step3CutCaller()
 	// 4. 查看调用关系，逆向检查上级调用是否加锁
+	seen := make(map[string]bool)
 	for v, nodes := range analyzer.callers2 {
 		for node := range nodes {
 			var checkFail string
 			analyzer.step4CheckPath(v, node, []*callgraph.Node{}, map[*callgraph.Node]bool{}, &checkFail)
 			if checkFail != "" {
-				pos := analyzer.prog.Fset.Position(v.Pos())
-				fmt.Printf("[mutex lint] %v:%v 没有调用 mutex lock 。调用链：%v\n", pos.Filename, pos.Line, checkFail)
-				break
+				if _, ok := seen[checkFail]; !ok {
+					pos := analyzer.prog.Fset.Position(v.Pos())
+					fmt.Printf("[mutex lint] %v:%v 没有调用 mutex lock 。调用链：%v\n", pos.Filename, pos.Line, checkFail)
+				}
+				seen[checkFail] = true
 			}
+			checkFail = ""
 		}
 	}
 }

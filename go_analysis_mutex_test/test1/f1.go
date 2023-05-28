@@ -1,6 +1,9 @@
 package test1
 
-import "sync"
+import (
+	"fmt"
+	"sync"
+)
 
 var m1 sync.Mutex // a,b,c
 var a int
@@ -13,4 +16,23 @@ func F1() {
 	a++
 	b[1] = 1
 	c = "111"
+}
+
+func F2() {
+	func() {
+		m1.Lock()
+		defer m1.Unlock()
+		_ = fmt.Sprintf("%v", a)
+
+		go func() {
+			_ = fmt.Sprintf("%v", c)
+		}()
+
+	}()
+	_ = fmt.Sprintf("%v", b)
+}
+
+func init() {
+	F1()
+	F2()
 }
