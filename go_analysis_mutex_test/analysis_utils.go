@@ -228,3 +228,12 @@ func getGlobalVarByName(pass *analysis.Pass, file *ast.File, name string) *ast.V
 	}
 	return nil
 }
+
+func getStructFieldByName(fields []*ast.Field, name string) *ast.Field {
+	for _, field := range fields {
+		if field.Names[0].Name == name {
+			return field
+		}
+	}
+	return nil
+}

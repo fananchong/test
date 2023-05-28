@@ -3,8 +3,8 @@ package test2
 import "sync"
 
 type A1 struct {
-	M sync.RWMutex // A,B
 	A int
+	M sync.RWMutex // A,B
 	B string
 }
 

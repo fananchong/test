@@ -24,7 +24,7 @@ func (analyzer *StructFieldAnalyzer) step1FindStructField(pass *analysis.Pass) {
 			case *ast.TypeSpec:
 				if structType, ok := t.Type.(*ast.StructType); ok {
 					fields := structType.Fields.List
-					for i, field := range fields {
+					for _, field := range fields {
 						if isMutexType(field.Type) {
 							m := getStructFieldByPos(analyzer.prog, pass.Fset.Position(field.Pos()))
 
@@ -41,19 +41,16 @@ func (analyzer *StructFieldAnalyzer) step1FindStructField(pass *analysis.Pass) {
 							if strings.Contains(comment, "nolint") {
 								continue
 							}
+							mutexFiled := field
 							varNames := strings.Split(comment, ",")
-							if i+1+len(varNames) > len(fields) {
-								pos := pass.Fset.Position(field.Pos())
-								fmt.Printf("[mutex lint] %v:%v mutex 变量注释有误，它要锁的变量未声明\n", pos.Filename, pos.Line)
-								continue
-							}
-							for j := 1; j <= len(varNames); j++ {
-								if fields[i+j].Names[0].Name != varNames[j-1] {
-									pos := pass.Fset.Position(fields[i+j].Pos())
-									fmt.Printf("[mutex lint] %v:%v mutex 变量注释中的变量 %v ，声明不对\n", pos.Filename, pos.Line, varNames[j-1])
+							for _, name := range varNames {
+								varFiled := getStructFieldByName(fields, name)
+								if varFiled == nil {
+									pos := pass.Fset.Position(mutexFiled.Pos())
+									fmt.Printf("[mutex lint] %v:%v mutex 变量注释中的变量 %v ，未声明\n", pos.Filename, pos.Line, name)
 									break
 								} else {
-									v := getStructFieldByPos(analyzer.prog, pass.Fset.Position(fields[i+j].Pos()))
+									v := getStructFieldByPos(analyzer.prog, pass.Fset.Position(varFiled.Pos()))
 									analyzer.vars[v] = m
 								}
 							}
