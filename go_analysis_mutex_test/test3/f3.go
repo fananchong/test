@@ -13,8 +13,10 @@ var (
 func F3() {
 	// m1.Lock()
 	// defer m1.Unlock()
-	// a = make([]int, 0)
-	fmt.Println(a)
+	a = make([]string, 0)
+	// fmt.Println(a)
+
+	fmt.Println("aaa")
 }
 
 func init() {
