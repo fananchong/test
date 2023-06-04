@@ -20,3 +20,11 @@ func F82() {
 	F8()
 	F8()
 }
+
+func F83() {
+	m1.Lock()
+	defer m1.Unlock()
+	for i := 0; i < a+100; i++ {
+		F8()
+	}
+}

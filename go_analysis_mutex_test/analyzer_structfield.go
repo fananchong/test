@@ -127,7 +127,7 @@ func (analyzer *StructFieldAnalyzer) HaveVar(prog *ssa.Program, caller *callgrap
 func (analyzer *StructFieldAnalyzer) CheckCallLock(prog *ssa.Program, caller *callgraph.Node, mymutex *types.Var, callee *callgraph.Node) bool {
 	var mInstrs []ssa.Instruction
 	for _, block := range caller.Func.Blocks {
-		mInstrs = append(mInstrs, analyzer.findInstrByStructField(block, mymutex)...)
+		mInstrs = append(mInstrs, analyzer.findInstrByStructFieldCall(block, mymutex)...)
 	}
 	for _, vPos := range getCalleePostion(prog, caller, callee) {
 		if !checkMutexLock(prog, mInstrs, vPos) {
