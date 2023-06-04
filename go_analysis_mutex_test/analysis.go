@@ -21,7 +21,7 @@ func Analysis(path string, analyzer *analysis.Analyzer) error {
 	}
 	// comment
 	for _, pkg := range packages {
-		analysisComment(pkg)
+		_ = analysisComment(pkg)
 	}
 	pass := &analysis.Pass{
 		Analyzer: analyzer,

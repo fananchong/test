@@ -26,15 +26,18 @@ popd
 
 ## 声明约定
 
-sync.Mutex sync.RWMutex 变量声明**加注释，标注要锁操作的变量或字段**
+1. sync.Mutex sync.RWMutex 变量声明**加注释，标注要锁操作的变量或字段**
+2. 如果不想检查某 mutex 或者上层调用函数，可以添加注释：**// nolint: mutex_check**
 
 如以下例子：
 
 ```go
-var m sync.Mutex // a,b,c
+var m1 sync.Mutex // a,b,c
 var a int
 var b = map[int]int{}
 var c string
+
+var m2 sync.Mutex // nolint: mutex_check
 
 type A1 struct {
 	M sync.RWMutex // A
