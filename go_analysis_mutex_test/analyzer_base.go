@@ -51,16 +51,16 @@ func (analyzer *BaseAnalyzer) step3CutCaller() {
 	for v := range analyzer.callers {
 		callers := analyzer.callers[v]
 		for caller := range callers {
-			fn := caller.Func.Name()
-			if fn[0] >= 'A' && fn[0] <= 'Z' {
-				poss := analyzer.Derive.CheckVarReturn(analyzer.prog, caller, v)
-				if len(poss) != 0 {
-					if _, ok := analyzer.callers3[v]; !ok {
-						analyzer.callers3[v] = make(map[*callgraph.Node][]token.Position)
-					}
-					analyzer.callers3[v][caller] = poss
+			// fn := caller.Func.Name()
+			// if fn[0] >= 'A' && fn[0] <= 'Z' {
+			poss := analyzer.Derive.CheckVarReturn(analyzer.prog, caller, v)
+			if len(poss) != 0 {
+				if _, ok := analyzer.callers3[v]; !ok {
+					analyzer.callers3[v] = make(map[*callgraph.Node][]token.Position)
 				}
+				analyzer.callers3[v][caller] = poss
 			}
+			// }
 		}
 	}
 }
@@ -357,6 +357,18 @@ func nolint(comment string) bool {
 }
 
 func hasVar(v ssa.Value, myvar *types.Var) bool {
+	var find bool
+	switch myvar.Type().Underlying().(type) {
+	case *types.Map:
+		find = true
+	case *types.Slice:
+		find = true
+	case *types.Pointer:
+		find = true
+	}
+	if !find {
+		return false
+	}
 	switch v := v.(type) {
 	case *ssa.UnOp:
 		return hasVar(v.X, myvar)
@@ -376,8 +388,45 @@ func hasVar(v ssa.Value, myvar *types.Var) bool {
 		}
 	case *ssa.Const:
 	case *ssa.Alloc:
+	case *ssa.Call:
+	case *ssa.Lookup:
+		// return hasVar(v.X, myvar)
+	case *ssa.Extract:
+		// switch v := v.Tuple.(type) {
+		// case *ssa.Call:
+		// case *ssa.Lookup:
+		// 	return hasVar(v.X, myvar)
+		// case *ssa.Next:
+		// 	switch v := v.Iter.(type) {
+		// 	case *ssa.Range:
+		// 		return hasVar(v.X, myvar)
+		// 	default:
+		// 		panic("发现还有其他类型需要处理下 #3")
+		// 	}
+		// default:
+		// 	panic("发现还有其他类型需要处理下 #2")
+		// }
+	case *ssa.MakeMap:
+	case *ssa.MakeChan:
+	case *ssa.MakeSlice:
+	case *ssa.Phi:
+	case *ssa.Slice:
+		return hasVar(v.X, myvar)
+	case *ssa.Parameter:
+		if v.Object() == myvar {
+			return true
+		}
+	case *ssa.BinOp:
+	case *ssa.IndexAddr:
+		// return hasVar(v.X, myvar)
+	case *ssa.TypeAssert:
+		return hasVar(v.X, myvar)
+	case *ssa.ChangeType:
+		return hasVar(v.X, myvar)
+	case *ssa.Convert:
+		return hasVar(v.X, myvar)
 	default:
-		panic("发现还有其他类型需要处理下")
+		// panic("发现还有其他类型需要处理下 #1")
 	}
 	return false
 }

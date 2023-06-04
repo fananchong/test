@@ -156,7 +156,12 @@ func (analyzer *StructFieldAnalyzer) CheckVarReturn(prog *ssa.Program, caller *c
 			if retInstr, ok := instr.(*ssa.Return); ok {
 				for _, r := range retInstr.Results {
 					if hasVar(r, myvar) {
-						poss = append(poss, analyzer.prog.Fset.Position(instr.Pos()))
+						vPos := analyzer.prog.Fset.Position(instr.Pos())
+						comment := getComment(vPos)
+						if nolint(comment) {
+							continue
+						}
+						poss = append(poss, vPos)
 					}
 				}
 			}
