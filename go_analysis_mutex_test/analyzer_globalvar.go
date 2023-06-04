@@ -95,6 +95,11 @@ func (analyzer *VarAnalyzer) FindCaller(edge *callgraph.Edge, seen map[*callgrap
 		for _, instr := range block.Instrs {
 			for k := range analyzer.vars {
 				if usesVar(instr, k) {
+					pos := analyzer.prog.Fset.Position(instr.Pos())
+					comment := getComment(pos)
+					if strings.Contains(comment, "nolint") {
+						continue
+					}
 					if _, ok := analyzer.callers[k]; !ok {
 						analyzer.callers[k] = make(map[*callgraph.Node][]token.Position)
 					}
@@ -115,6 +120,10 @@ func (analyzer *VarAnalyzer) CheckVarLock(prog *ssa.Program, caller *callgraph.N
 	}
 	for _, vInstr := range vInstrs {
 		vPos := prog.Fset.Position(vInstr.Pos())
+		comment := getComment(vPos)
+		if strings.Contains(comment, "nolint") {
+			continue
+		}
 		if !checkMutexLock(prog, mInstrs, vPos) {
 			poss = append(poss, caller.Func.Prog.Fset.Position(vInstr.Pos()))
 		}
@@ -140,6 +149,10 @@ func (analyzer *VarAnalyzer) CheckCallLock(prog *ssa.Program, caller *callgraph.
 		mInstrs = append(mInstrs, analyzer.findInstrByGlobalVar(block, mymutex)...)
 	}
 	for _, vPos := range getCalleePostion(prog, caller, callee) {
+		comment := getComment(vPos)
+		if strings.Contains(comment, "nolint") {
+			continue
+		}
 		if !checkMutexLock(prog, mInstrs, vPos) {
 			return false
 		}
