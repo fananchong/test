@@ -25,14 +25,9 @@ func F2() {
 		_ = fmt.Sprintf("%v", a)
 
 		go func() {
-			_ = fmt.Sprintf("%v", c)
+			c = "222"
 		}()
 
 	}()
-	_ = fmt.Sprintf("%v", b)
-}
-
-func init() {
-	F1()
-	F2()
+	b = map[int]int{}
 }
