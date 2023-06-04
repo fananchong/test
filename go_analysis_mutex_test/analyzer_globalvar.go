@@ -48,7 +48,7 @@ func (analyzer *VarAnalyzer) FindVar(pass *analysis.Pass) {
 				comment = strings.ReplaceAll(comment, "\n", "")
 			}
 			if comment == "" {
-				fmt.Printf("[mutex lint] %v:%v mutex 变量没有注释，指明它要锁的变量\n", pos.Filename, pos.Line)
+				fmt.Printf("[mutex check] %v:%v mutex 变量没有注释，指明它要锁的变量\n", pos.Filename, pos.Line)
 				continue
 			}
 			if strings.Contains(comment, "nolint") {
@@ -59,7 +59,7 @@ func (analyzer *VarAnalyzer) FindVar(pass *analysis.Pass) {
 				valueSpec := analyzer.getGlobalVarByName(pass, file, name)
 				if valueSpec == nil {
 					pos := pass.Fset.Position(mutexValueSpec.Pos())
-					fmt.Printf("[mutex lint] %v:%v mutex 变量注释中的变量 %v ，未声明\n", pos.Filename, pos.Line, name)
+					fmt.Printf("[mutex check] %v:%v mutex 变量注释中的变量 %v ，未声明\n", pos.Filename, pos.Line, name)
 					break
 				} else {
 					pos := pass.Fset.Position(valueSpec.Pos())
@@ -114,7 +114,8 @@ func (analyzer *VarAnalyzer) CheckVarLock(prog *ssa.Program, caller *callgraph.N
 		vInstrs = append(vInstrs, analyzer.findInstrByGlobalVar(block, myvar)...)
 	}
 	for _, vInstr := range vInstrs {
-		if !checkVar(prog, mInstrs, vInstr) {
+		vPos := prog.Fset.Position(vInstr.Pos())
+		if !checkMutexLock(prog, mInstrs, vPos) {
 			poss = append(poss, caller.Func.Prog.Fset.Position(vInstr.Pos()))
 		}
 	}
@@ -131,6 +132,19 @@ func (analyzer *VarAnalyzer) HaveVar(prog *ssa.Program, caller *callgraph.Node, 
 		}
 	}
 	return find
+}
+
+func (analyzer *VarAnalyzer) CheckCallLock(prog *ssa.Program, caller *callgraph.Node, mymutex *types.Var, callee *callgraph.Node) bool {
+	var mInstrs []ssa.Instruction
+	for _, block := range caller.Func.Blocks {
+		mInstrs = append(mInstrs, analyzer.findInstrByGlobalVar(block, mymutex)...)
+	}
+	for _, vPos := range getCalleePostion(prog, caller, callee) {
+		if !checkMutexLock(prog, mInstrs, vPos) {
+			return false
+		}
+	}
+	return true
 }
 
 func (analyzer *VarAnalyzer) getGlobalVarByPos(prog *ssa.Program, pos token.Position) *types.Var {

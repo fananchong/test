@@ -30,7 +30,7 @@ func (analyzer *StructFieldAnalyzer) FindVar(pass *analysis.Pass) {
 							}
 							if comment == "" {
 								pos := pass.Fset.Position(field.Pos())
-								fmt.Printf("[mutex lint] %v:%v mutex 变量没有注释，指明它要锁的变量\n", pos.Filename, pos.Line)
+								fmt.Printf("[mutex check] %v:%v mutex 变量没有注释，指明它要锁的变量\n", pos.Filename, pos.Line)
 								continue
 							}
 							if strings.Contains(comment, "nolint") {
@@ -42,7 +42,7 @@ func (analyzer *StructFieldAnalyzer) FindVar(pass *analysis.Pass) {
 								varFiled := analyzer.getStructFieldByName(fields, name)
 								if varFiled == nil {
 									pos := pass.Fset.Position(mutexFiled.Pos())
-									fmt.Printf("[mutex lint] %v:%v mutex 变量注释中的变量 %v ，未声明\n", pos.Filename, pos.Line, name)
+									fmt.Printf("[mutex check] %v:%v mutex 变量注释中的变量 %v ，未声明\n", pos.Filename, pos.Line, name)
 									break
 								} else {
 									v := analyzer.getStructFieldByPos(analyzer.prog, pass.Fset.Position(varFiled.Pos()))
@@ -104,7 +104,8 @@ func (analyzer *StructFieldAnalyzer) CheckVarLock(prog *ssa.Program, caller *cal
 		vInstrs = append(vInstrs, analyzer.findInstrByStructField(block, myvar)...)
 	}
 	for _, vInstr := range vInstrs {
-		if !checkVar(prog, mInstrs, vInstr) {
+		vPos := prog.Fset.Position(vInstr.Pos())
+		if !checkMutexLock(prog, mInstrs, vPos) {
 			poss = append(poss, caller.Func.Prog.Fset.Position(vInstr.Pos()))
 		}
 	}
@@ -121,6 +122,19 @@ func (analyzer *StructFieldAnalyzer) HaveVar(prog *ssa.Program, caller *callgrap
 		}
 	}
 	return find
+}
+
+func (analyzer *StructFieldAnalyzer) CheckCallLock(prog *ssa.Program, caller *callgraph.Node, mymutex *types.Var, callee *callgraph.Node) bool {
+	var mInstrs []ssa.Instruction
+	for _, block := range caller.Func.Blocks {
+		mInstrs = append(mInstrs, analyzer.findInstrByStructField(block, mymutex)...)
+	}
+	for _, vPos := range getCalleePostion(prog, caller, callee) {
+		if !checkMutexLock(prog, mInstrs, vPos) {
+			return false
+		}
+	}
+	return true
 }
 
 func (analyzer *StructFieldAnalyzer) getStructFieldByPos(prog *ssa.Program, pos token.Position) *types.Var {
