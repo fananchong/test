@@ -33,7 +33,7 @@ func (analyzer *StructFieldAnalyzer) FindVar(pass *analysis.Pass) {
 								fmt.Printf("[mutex check] %v:%v mutex 变量没有注释，指明它要锁的变量\n", pos.Filename, pos.Line)
 								continue
 							}
-							if strings.Contains(comment, "nolint") {
+							if nolint(comment) {
 								continue
 							}
 							mutexFiled := field
@@ -83,7 +83,7 @@ func (analyzer *StructFieldAnalyzer) FindCaller(edge *callgraph.Edge, seen map[*
 							if k == field {
 								pos := analyzer.prog.Fset.Position(instr.Pos())
 								comment := getComment(pos)
-								if strings.Contains(comment, "nolint") {
+								if nolint(comment) {
 									continue
 								}
 								if _, ok := analyzer.callers[k]; !ok {
@@ -111,7 +111,7 @@ func (analyzer *StructFieldAnalyzer) CheckVarLock(prog *ssa.Program, caller *cal
 	for _, vInstr := range vInstrs {
 		vPos := prog.Fset.Position(vInstr.Pos())
 		comment := getComment(vPos)
-		if strings.Contains(comment, "nolint") {
+		if nolint(comment) {
 			continue
 		}
 		if !checkMutexLock(prog, mInstrs, vPos) {
@@ -140,7 +140,7 @@ func (analyzer *StructFieldAnalyzer) CheckCallLock(prog *ssa.Program, caller *ca
 	}
 	for _, vPos := range getCalleePostion(prog, caller, callee) {
 		comment := getComment(vPos)
-		if strings.Contains(comment, "nolint") {
+		if nolint(comment) {
 			continue
 		}
 		if !checkMutexLock(prog, mInstrs, vPos) {

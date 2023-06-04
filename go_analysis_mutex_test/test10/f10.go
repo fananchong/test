@@ -18,17 +18,23 @@ func (a *A10) F10() {
 
 var a = &A10{}
 
-func F102() {
+// func F102() {
+// 	a.Lock()
+// 	a.F10() // nolint: mutex_check
+// 	a.Unlock()
+// 	a.F10()
+// }
+
+func F103() {
 	a.Lock()
 	a.F10()
 	a.Unlock()
-	a.F10() // nolint
+	a.F10() // nolint: mutex_check
 }
 
-// func F103() {
+// func F104() {
 // 	a.Lock()
-// 	defer a.Unlock()
-// 	for i := 0; i < 100; i++ {
-// 		a.F10()
-// 	}
+// 	a.F10()
+// 	a.Unlock()
+// 	a.F10()
 // }
