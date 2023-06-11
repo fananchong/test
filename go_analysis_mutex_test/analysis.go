@@ -46,12 +46,22 @@ func Analysis(path string, analyzer *analysis.Analyzer) error {
 
 func getAllPackageName(root string) (packages []string) {
 	m := make(map[string]int)
+	var rootmodule string
 	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
-		if info.IsDir() && filepath.Dir(path) != "." {
-			if pkgName, err := getPackageName(filepath.Dir(path)); err == nil {
+		if info.IsDir() {
+			if pkgName, err := getPackageName(path); err == nil {
+				pkgName = strings.TrimSpace(pkgName)
+				if path == root {
+					rootmodule = pkgName
+				}
+				if rootmodule != "" {
+					if !strings.HasPrefix(pkgName, rootmodule) {
+						return nil
+					}
+				}
 				v := strings.TrimSpace(pkgName) + "/..."
 				m[v] = 1
 			}
